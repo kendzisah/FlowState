@@ -1,32 +1,27 @@
-//
-//  FlowStateApp.swift
-//  FlowState
-//
-//  Created by Ken Dzisah on 4/26/26.
-//
-
 import SwiftUI
 import SwiftData
 
 @main
 struct FlowStateApp: App {
-    var sharedModelContainer: ModelContainer = {
-        let schema = Schema([
-            Item.self,
-        ])
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+    @State private var store = AppStore()
+    @Environment(\.scenePhase) private var scenePhase
 
+    let modelContainer: ModelContainer = {
         do {
-            return try ModelContainer(for: schema, configurations: [modelConfiguration])
+            return try ModelContainer(for: Task.self, ParkedTask.self)
         } catch {
-            fatalError("Could not create ModelContainer: \(error)")
+            fatalError("Failed to create ModelContainer: \(error)")
         }
     }()
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            RootView()
+                .environment(store)
+                .modelContainer(modelContainer)
+                .onChange(of: scenePhase) { _, newPhase in
+                    store.handleScenePhase(newPhase)
+                }
         }
-        .modelContainer(sharedModelContainer)
     }
 }
