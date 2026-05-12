@@ -7,9 +7,13 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		BE42585B2FAC8403007F616B /* ReceiptParser in Frameworks */ = {isa = PBXBuildFile; productRef = BE42585A2FAC8403007F616B /* ReceiptParser */; };
+		BE42585D2FAC8403007F616B /* RevenueCat in Frameworks */ = {isa = PBXBuildFile; productRef = BE42585C2FAC8403007F616B /* RevenueCat */; };
+		BE42585F2FAC8403007F616B /* RevenueCatUI in Frameworks */ = {isa = PBXBuildFile; productRef = BE42585E2FAC8403007F616B /* RevenueCatUI */; };
 		BE780A962F9EC78F004C4F29 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BE780A952F9EC78F004C4F29 /* WidgetKit.framework */; };
 		BE780A982F9EC78F004C4F29 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BE780A972F9EC78F004C4F29 /* SwiftUI.framework */; };
 		BE780AA52F9EC792004C4F29 /* FlowStateActivityExtensionExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = BE780A932F9EC78F004C4F29 /* FlowStateActivityExtensionExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		BE780BC82FA1D8CA004C4F29 /* Secrets.xcconfig in Resources */ = {isa = PBXBuildFile; fileRef = BE780BC72FA1D8CA004C4F29 /* Secrets.xcconfig */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -41,17 +45,18 @@
 		BE780A932F9EC78F004C4F29 /* FlowStateActivityExtensionExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = FlowStateActivityExtensionExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		BE780A952F9EC78F004C4F29 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		BE780A972F9EC78F004C4F29 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
+		BE780BC72FA1D8CA004C4F29 /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		BE780A8E2F9EC5CD004C4F29 /* Exceptions for "FlowState" folder in "FlowState" target */ = {
+		BE4257822FA9B21D007F616B /* Exceptions for "FlowState" folder in "FlowState" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
 			);
 			target = BE780A7B2F9EC50A004C4F29 /* FlowState */;
 		};
-		BE780AA92F9EC792004C4F29 /* Exceptions for "FlowStateActivityExtension" folder in "FlowStateActivityExtensionExtension" target */ = {
+		BE4257832FA9B34B007F616B /* Exceptions for "FlowStateActivityExtension" folder in "FlowStateActivityExtensionExtension" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
@@ -64,7 +69,7 @@
 		BE780A7E2F9EC50A004C4F29 /* FlowState */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				BE780A8E2F9EC5CD004C4F29 /* Exceptions for "FlowState" folder in "FlowState" target */,
+				BE4257822FA9B21D007F616B /* Exceptions for "FlowState" folder in "FlowState" target */,
 			);
 			path = FlowState;
 			sourceTree = "<group>";
@@ -72,7 +77,7 @@
 		BE780A992F9EC790004C4F29 /* FlowStateActivityExtension */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				BE780AA92F9EC792004C4F29 /* Exceptions for "FlowStateActivityExtension" folder in "FlowStateActivityExtensionExtension" target */,
+				BE4257832FA9B34B007F616B /* Exceptions for "FlowStateActivityExtension" folder in "FlowStateActivityExtensionExtension" target */,
 			);
 			path = FlowStateActivityExtension;
 			sourceTree = "<group>";
@@ -84,6 +89,9 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				BE42585D2FAC8403007F616B /* RevenueCat in Frameworks */,
+				BE42585B2FAC8403007F616B /* ReceiptParser in Frameworks */,
+				BE42585F2FAC8403007F616B /* RevenueCatUI in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -106,6 +114,7 @@
 				BE780A992F9EC790004C4F29 /* FlowStateActivityExtension */,
 				BE780A942F9EC78F004C4F29 /* Frameworks */,
 				BE780A7D2F9EC50A004C4F29 /* Products */,
+				BE780BC72FA1D8CA004C4F29 /* Secrets.xcconfig */,
 			);
 			sourceTree = "<group>";
 		};
@@ -149,6 +158,9 @@
 			);
 			name = FlowState;
 			packageProductDependencies = (
+				BE42585A2FAC8403007F616B /* ReceiptParser */,
+				BE42585C2FAC8403007F616B /* RevenueCat */,
+				BE42585E2FAC8403007F616B /* RevenueCatUI */,
 			);
 			productName = FlowState;
 			productReference = BE780A7C2F9EC50A004C4F29 /* FlowState.app */;
@@ -203,6 +215,9 @@
 			);
 			mainGroup = BE780A732F9EC50A004C4F29;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				BE4258592FAC8402007F616B /* XCRemoteSwiftPackageReference "purchases-ios-spm" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = BE780A7D2F9EC50A004C4F29 /* Products */;
 			projectDirPath = "";
@@ -219,6 +234,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				BE780BC82FA1D8CA004C4F29 /* Secrets.xcconfig in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -375,12 +391,13 @@
 		};
 		BE780A8A2F9EC50C004C4F29 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = BE780BC72FA1D8CA004C4F29 /* Secrets.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = FlowState/FlowState.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = NGFWFKBJU2;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -404,7 +421,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.flocktechnologies.FlowState;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -425,12 +442,13 @@
 		};
 		BE780A8B2F9EC50C004C4F29 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = BE780BC72FA1D8CA004C4F29 /* Secrets.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = FlowState/FlowState.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = NGFWFKBJU2;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -454,7 +472,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.flocktechnologies.FlowState;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -479,7 +497,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = NGFWFKBJU2;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = FlowStateActivityExtension/Info.plist;
@@ -491,7 +509,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.flocktechnologies.FlowState.FlowStateActivityExtension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -511,7 +529,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = NGFWFKBJU2;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = FlowStateActivityExtension/Info.plist;
@@ -523,7 +541,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.flocktechnologies.FlowState.FlowStateActivityExtension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -569,6 +587,35 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		BE4258592FAC8402007F616B /* XCRemoteSwiftPackageReference "purchases-ios-spm" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/RevenueCat/purchases-ios-spm.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 5.71.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		BE42585A2FAC8403007F616B /* ReceiptParser */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = BE4258592FAC8402007F616B /* XCRemoteSwiftPackageReference "purchases-ios-spm" */;
+			productName = ReceiptParser;
+		};
+		BE42585C2FAC8403007F616B /* RevenueCat */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = BE4258592FAC8402007F616B /* XCRemoteSwiftPackageReference "purchases-ios-spm" */;
+			productName = RevenueCat;
+		};
+		BE42585E2FAC8403007F616B /* RevenueCatUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = BE4258592FAC8402007F616B /* XCRemoteSwiftPackageReference "purchases-ios-spm" */;
+			productName = RevenueCatUI;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = BE780A742F9EC50A004C4F29 /* Project object */;
 }

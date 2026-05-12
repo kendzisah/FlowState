@@ -27,6 +27,13 @@ final class AppStore {
     var showSettings: Bool = false
     var completionDialog: CompletionDialogState? = nil
 
+    /// Set to `true` when `ReviewPromptManager` decides the App Store review
+    /// prompt is due. `RootView` watches this and fires the SwiftUI
+    /// `requestReview` action, then flips it back to `false`. Kept on
+    /// AppStore (rather than ReviewPromptManager) so the trigger crosses the
+    /// non-View → View boundary without coupling AppStore+Timer to SwiftUI.
+    var pendingReviewRequest: Bool = false
+
     // Theme — system follow with override. Stored so @Observable tracks changes;
     // didSet persists to UserDefaults.
     var themeMode: ThemeMode = (UserDefaults.standard.string(forKey: "themeMode")
@@ -66,8 +73,65 @@ final class AppStore {
         didSet { UserDefaults.standard.set(hasCompletedOnboarding, forKey: "hasCompletedOnboarding") }
     }
 
-    /// Paywall entitlement. Default true (Phase A still works); paywall flips false on trial expiry.
-    var entitled: Bool = (UserDefaults.standard.object(forKey: "entitled") as? Bool) ?? true {
+    /// Paywall entitlement. Source of truth is RevenueCat's `customerInfoStream`,
+    /// which `SubscriptionManager.bind(to:)` mirrors here. UserDefaults caches the
+    /// last-known value so cold launches don't flash the paywall before the SDK
+    /// returns (the cached value is overwritten as soon as `customerInfoStream`
+    /// emits, which happens within milliseconds of `Purchases.configure(...)`).
+    var entitled: Bool = (UserDefaults.standard.object(forKey: "entitled") as? Bool) ?? false {
         didSet { UserDefaults.standard.set(entitled, forKey: "entitled") }
     }
+
+    // MARK: - Onboarding-derived profile
+
+    var marketingOptIn: Bool? = {
+        guard let v = UserDefaults.standard.object(forKey: "marketingOptIn") as? Bool else { return nil }
+        return v
+    }() {
+        didSet {
+            if let v = marketingOptIn { UserDefaults.standard.set(v, forKey: "marketingOptIn") }
+            else { UserDefaults.standard.removeObject(forKey: "marketingOptIn") }
+        }
+    }
+
+    var primaryNeed: PrimaryNeed? = (UserDefaults.standard.string(forKey: "primaryNeed")
+        .flatMap { PrimaryNeed(rawValue: $0) }) {
+        didSet { UserDefaults.standard.set(primaryNeed?.rawValue, forKey: "primaryNeed") }
+    }
+
+    var neurodivergenceSelfId: NeurodivergenceSelfID? = (UserDefaults.standard.string(forKey: "neurodivergenceSelfId")
+        .flatMap { NeurodivergenceSelfID(rawValue: $0) }) {
+        didSet { UserDefaults.standard.set(neurodivergenceSelfId?.rawValue, forKey: "neurodivergenceSelfId") }
+    }
+
+    var calendarImported: Bool = UserDefaults.standard.bool(forKey: "calendarImported") {
+        didSet { UserDefaults.standard.set(calendarImported, forKey: "calendarImported") }
+    }
+
+    /// Tip-card dismissals on the Calendar tab.
+    var tipSmartWidgetsDismissed: Bool = UserDefaults.standard.bool(forKey: "tipSmartWidgetsDismissed") {
+        didSet { UserDefaults.standard.set(tipSmartWidgetsDismissed, forKey: "tipSmartWidgetsDismissed") }
+    }
+    var tipImportCalendarDismissed: Bool = UserDefaults.standard.bool(forKey: "tipImportCalendarDismissed") {
+        didSet { UserDefaults.standard.set(tipImportCalendarDismissed, forKey: "tipImportCalendarDismissed") }
+    }
+
+    /// Stable user identifier returned by Sign in with Apple. Nil if email auth was chosen
+    /// or if onboarding is incomplete.
+    var appleUserIdentifier: String? = UserDefaults.standard.string(forKey: "appleUserIdentifier") {
+        didSet { UserDefaults.standard.set(appleUserIdentifier, forKey: "appleUserIdentifier") }
+    }
+
+    /// Email captured during email-auth path. Phase A is local-only — no password storage.
+    var userEmail: String? = UserDefaults.standard.string(forKey: "userEmail") {
+        didSet { UserDefaults.standard.set(userEmail, forKey: "userEmail") }
+    }
+}
+
+enum PrimaryNeed: String, Codable, CaseIterable {
+    case organize, remember, prioritize, routines, focus, other
+}
+
+enum NeurodivergenceSelfID: String, Codable, CaseIterable {
+    case yes, thinkSo, no, unknown
 }

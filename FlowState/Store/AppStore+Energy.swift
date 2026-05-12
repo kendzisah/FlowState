@@ -11,8 +11,11 @@ extension AppStore {
         fireEnergyHaptic(level)
     }
 
+    /// Energy-matched sort for the regular task list. Routine tasks are
+    /// excluded — they're rendered in their own slot groups (energy-neutral)
+    /// above this list.
     func sortedTasks(_ tasks: [Task]) -> [Task] {
-        let active = tasks.filter { !$0.isCompleted }
+        let active = tasks.filter { !$0.isCompleted && !$0.isRoutine }
         guard let energy = energyLevel, energy != .foggy else {
             return active.sorted { $0.createdAt > $1.createdAt }
         }
@@ -27,6 +30,6 @@ extension AppStore {
 
     func matchingCount(_ tasks: [Task]) -> Int {
         guard let energy = energyLevel, energy != .foggy else { return 0 }
-        return tasks.filter { !$0.isCompleted && $0.energyTag == energy }.count
+        return tasks.filter { !$0.isCompleted && !$0.isRoutine && $0.energyTag == energy }.count
     }
 }

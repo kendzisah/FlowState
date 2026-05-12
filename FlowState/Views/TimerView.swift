@@ -87,5 +87,10 @@ struct TimerView: View {
             DurationPickerSheet()
                 .environment(\.palette, palette)
         }
+        .firstTimeTooltip(
+            id: "timer.flow",
+            title: "Quiet focus",
+            body: "Tap the duration to change it. Park the task to come back later — it goes to your parked list, not the bin. Complete to log it and clear the screen."
+        )
     }
 }

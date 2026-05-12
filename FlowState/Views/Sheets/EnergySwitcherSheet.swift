@@ -33,6 +33,11 @@ struct EnergySwitcherSheet: View {
             Spacer(minLength: 0)
         }
         .padding(.horizontal, Geometry.horizontalPadding)
+        .firstTimeTooltip(
+            id: "energy.switcher",
+            title: "Energy, not effort",
+            body: "Pick the level that fits you right now. Foggy hides everything except a one-tap rest screen — it's allowed and won't break a streak (there isn't one)."
+        )
         .presentationDetents([.fraction(0.6), .large])
         .presentationDragIndicator(.visible)
         .presentationCornerRadius(Geometry.sheetRadius)

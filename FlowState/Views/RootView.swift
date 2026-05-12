@@ -1,14 +1,30 @@
 import SwiftUI
+import StoreKit
 
 struct RootView: View {
     @Environment(AppStore.self) private var store
     @Environment(\.colorScheme) private var systemColorScheme
+    @Environment(\.modelContext) private var modelContext
+    @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.requestReview) private var requestReview
+
+    private var auth: AuthManager { .shared }
 
     private enum Route {
-        case onboarding, paywall, timer, checkin, rest, tasks
+        case splash, onboarding, paywall, timer, checkin, rest, home
     }
 
     private var route: Route {
+        // While AuthManager is still pulling the session out of the Keychain,
+        // hold a splash so we don't briefly flash the welcome screen to a
+        // returning user.
+        if auth.isRestoring { return .splash }
+
+        // Account is mandatory. Even if `hasCompletedOnboarding` is true
+        // (e.g., a returning user whose Keychain got wiped), they have to
+        // sign back in before they can use the app.
+        if !auth.isAuthenticated { return .onboarding }
+
         if !store.hasCompletedOnboarding { return .onboarding }
 
         let foggyRestAccessible = store.energyIsActiveToday
@@ -20,7 +36,7 @@ struct RootView: View {
         if store.timerRunning || store.activeTask != nil { return .timer }
         if !store.energyIsActiveToday                    { return .checkin }
         if store.energyLevel == .foggy && !store.peekList { return .rest }
-        return .tasks
+        return .home
     }
 
     private var palette: Palette {
@@ -36,12 +52,13 @@ struct RootView: View {
 
             Group {
                 switch route {
-                case .onboarding: OnboardingView()
-                case .paywall:    PaywallView { store.entitled = true }
+                case .splash:     LaunchSplash()
+                case .onboarding: OnboardingCoordinator()
+                case .paywall:    PaywallView { _ in store.entitled = true }
                 case .timer:      TimerView()
                 case .checkin:    CheckInView()
                 case .rest:       RestView()
-                case .tasks:      TaskListView()
+                case .home:       HomeTabView()
                 }
             }
             .environment(\.palette, palette)
@@ -62,6 +79,49 @@ struct RootView: View {
             EnergySwitcherSheet()
                 .environment(\.palette, palette)
         }
+        .task(id: auth.currentUserID) {
+            // Fires on cold-launch (after restore) and on every sign-in/out.
+            // When the user signs in (or restores a session), claim any orphan
+            // rows and run a full sync. Sign-out leaves local data on disk.
+            guard auth.currentUserID != nil else { return }
+            RoutineScheduler.materializeToday(context: modelContext, userID: auth.currentUserID)
+            await SyncEngine.shared.runFullSync(context: modelContext)
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            guard newPhase == .active, auth.isAuthenticated else { return }
+            RoutineScheduler.materializeToday(context: modelContext, userID: auth.currentUserID)
+            ReviewPromptManager.recordAppForeground(store: store)
+            _Concurrency.Task {
+                await SyncEngine.shared.runFullSync(context: modelContext)
+            }
+        }
+        .onChange(of: store.pendingReviewRequest) { _, isPending in
+            guard isPending else { return }
+            requestReview()
+            ReviewPromptManager.markPromptShown()
+            store.pendingReviewRequest = false
+        }
+    }
+}
+
+/// Shown briefly between cold-launch and AuthManager.restore() completing,
+/// so a returning user doesn't see the welcome screen flash before the
+/// session pulls out of Keychain.
+private struct LaunchSplash: View {
+    @Environment(\.palette) private var palette
+
+    var body: some View {
+        VStack(spacing: 16) {
+            ProgressView()
+                .tint(palette.parkedAccent)
+                .scaleEffect(1.2)
+            Text("FlowState")
+                .font(AppFont.title)
+                .tracking(AppFont.titleTracking)
+                .foregroundStyle(palette.textPrimary)
+                .opacity(0.85)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 

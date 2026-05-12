@@ -124,7 +124,7 @@ extension AppStore {
         )
         if let context {
             context.insert(parked)
-            try? context.save()
+            context.saveAndSync()
         }
         timerRunning = false
         stopTicker()
@@ -140,7 +140,7 @@ extension AppStore {
         task.isCompleted = true
         task.completedAt = Date()
         if let context {
-            try? context.save()
+            context.saveAndSync()
         }
         timerRunning = false
         stopTicker()
@@ -151,13 +151,15 @@ extension AppStore {
 
         successHaptic()
         completionDialog = CompletionDialogState(taskTitle: task.title)
+
+        ReviewPromptManager.recordTaskCompletion(store: self)
     }
 
     func resumeParked(_ parked: ParkedTask, allTasks: [Task], context: ModelContext?) {
         guard let task = allTasks.first(where: { $0.id == parked.taskId }) else {
             if let context {
                 context.delete(parked)
-                try? context.save()
+                context.saveAndSync()
             }
             return
         }
@@ -177,7 +179,7 @@ extension AppStore {
         timerRunning = true
         if let context {
             context.delete(parked)
-            try? context.save()
+            context.saveAndSync()
         }
         startTicker()
 

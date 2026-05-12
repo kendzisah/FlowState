@@ -2,6 +2,29 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+	<key>UILaunchScreen</key>
+	<dict>
+		<key>UIImageName</key>
+		<string>flow-state-splash-art</string>
+		<key>UIImageRespectsSafeAreaInsets</key>
+		<false/>
+		<key>UIColorName</key>
+		<string></string>
+	</dict>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>FlowState reads your calendar so it can show your day's events alongside your tasks. Your data stays on your device.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>FlowState uses the microphone to turn what you say into a task title.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>FlowState transcribes your speech into a task title. Speech is processed on-device when supported.</string>
+	<key>SUPABASE_URL</key>
+	<string>$(SUPABASE_URL)</string>
+	<key>SUPABASE_PUBLISHABLE_KEY</key>
+	<string>$(SUPABASE_PUBLISHABLE_KEY)</string>
+	<key>REVENUECAT_API_KEY</key>
+	<string>$(REVENUECAT_API_KEY)</string>
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
 	<array>
 		<string>com.flocktechnologies.FlowState.timerCheck</string>
