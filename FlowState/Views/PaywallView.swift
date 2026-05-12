@@ -409,7 +409,7 @@ struct PaywallView: View {
     // MARK: - Footer
 
     private var footer: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 10) {
             Button {
                 _Concurrency.Task { await restore() }
             } label: {
@@ -424,13 +424,32 @@ struct PaywallView: View {
             }
             .disabled(isRestoring)
 
-            Text("Subscription renews automatically. Manage or cancel in Settings → Apple ID → Subscriptions.")
-                .font(.system(size: 11, weight: .medium))
+            // App Review Guideline 3.1.2(a) — auto-renewable subscriptions
+            // must disclose renewal mechanics + functional links to Terms
+            // and Privacy. Wording follows Apple's recommended template.
+            Text("Payment will be charged to your Apple ID at confirmation of purchase. Subscription automatically renews unless canceled at least 24 hours before the end of the current period. Your account will be charged for renewal within 24 hours prior to the end of the current period. Manage or cancel anytime in Settings → Apple ID → Subscriptions.")
+                .font(.system(size: 10, weight: .medium))
                 .foregroundStyle(palette.textDimmed)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 8)
+                .fixedSize(horizontal: false, vertical: true)
+
+            HStack(spacing: 14) {
+                Link("Terms of Use", destination: Self.termsURL)
+                Text("·")
+                    .foregroundStyle(palette.textDimmed)
+                Link("Privacy Policy", destination: Self.privacyURL)
+            }
+            .font(.system(size: 11, weight: .semibold))
+            .tint(palette.textSecondary)
         }
     }
+
+    // Apple's Standard EULA (opted into via App Store Connect → App
+    // Information). Privacy policy is FlowState-authored, hosted on
+    // GitHub Pages.
+    private static let termsURL = URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!
+    private static let privacyURL = URL(string: "https://kendzisah.github.io/FlowState/privacy")!
 
     // MARK: - Close
 
