@@ -208,6 +208,9 @@ struct EditRoutineSheet: View {
             RoutineScheduler.materializeToday(context: context, userID: userID)
         }
 
+        // A tag mutation changes the body text of its group's notification
+        // ("💧 Water · 🧘 Stretch · …"), so rebuild reminders.
+        NotificationManager.refreshAllRoutineReminders(context: context)
         dismiss()
     }
 }

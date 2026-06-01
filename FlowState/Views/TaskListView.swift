@@ -236,14 +236,7 @@ struct TaskListView: View {
         for tag in tagsInGroup { context.delete(tag) }
         context.delete(group)
         context.saveAndSync()
-    }
-
-    private func slotLabel(_ slot: RoutineSlot) -> String {
-        switch slot {
-        case .morning:   return "Morning"
-        case .afternoon: return "Afternoon"
-        case .evening:   return "Evening"
-        }
+        NotificationManager.refreshAllRoutineReminders(context: context)
     }
 
     @ViewBuilder
@@ -269,20 +262,23 @@ struct TaskListView: View {
                         removal: .scale(scale: 0.95).combined(with: .opacity)
                     ))
                 }
-                addGroupButton(for: slot)
             }
+            newRoutineGroupButton
         }
         .animation(.easeOut(duration: 0.3), value: entries.map(\.group.id))
     }
 
-    private func addGroupButton(for slot: RoutineSlot) -> some View {
+    /// One general entry-point for creating a routine group. The sheet itself
+    /// asks for a reminder time and auto-derives the slot, so we no longer
+    /// need three slot-specific buttons.
+    private var newRoutineGroupButton: some View {
         Button {
-            addingGroupSlot = slot
+            addingGroupSlot = RoutineSlot.from(hour: Calendar.current.component(.hour, from: Date()))
         } label: {
             HStack(spacing: 8) {
                 Image(systemName: "plus.circle")
                     .font(.system(size: 13, weight: .semibold))
-                Text("New \(slotLabel(slot).lowercased()) group")
+                Text("New routine group")
                     .font(AppFont.caption)
                 Spacer()
             }
@@ -296,7 +292,7 @@ struct TaskListView: View {
             )
         }
         .buttonStyle(.pressable)
-        .accessibilityLabel("Add new \(slotLabel(slot)) routine group")
+        .accessibilityLabel("New routine group")
     }
 
     /// Deletes the source routine (so it stops repeating) and every Task
@@ -317,6 +313,7 @@ struct TaskListView: View {
             context.delete(tag)
         }
         context.saveAndSync()
+        NotificationManager.refreshAllRoutineReminders(context: context)
     }
 
     private func performDelete(_ task: Task) {

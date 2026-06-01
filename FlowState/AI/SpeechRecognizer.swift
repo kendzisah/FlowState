@@ -40,6 +40,8 @@ final class SpeechRecognizer {
             try session.setCategory(.record, mode: .measurement, options: .duckOthers)
             try session.setActive(true, options: .notifyOthersOnDeactivation)
         } catch {
+            AnalyticsErrorReporter.report(error, context: "speech.setup")
+            Analytics.track(.speechRecognitionFailed(reason: "audio_session"))
             lastError = "Couldn't start audio session: \(error.localizedDescription)"
             return false
         }
@@ -63,6 +65,8 @@ final class SpeechRecognizer {
         do {
             try engine.start()
         } catch {
+            AnalyticsErrorReporter.report(error, context: "speech.recognize")
+            Analytics.track(.speechRecognitionFailed(reason: "engine_start"))
             lastError = "Couldn't start microphone: \(error.localizedDescription)"
             await stop()
             return false

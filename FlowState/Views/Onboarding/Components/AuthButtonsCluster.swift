@@ -91,10 +91,12 @@ struct AuthButtonsCluster: View {
                     if draft.userEmail == nil {
                         draft.userEmail = AuthManager.shared.currentEmail
                     }
+                    Analytics.track(.onboardingAccountCreated(method: "apple"))
                     onAuthenticated(false)
                 } catch {
                     appleErrorText = (error as? LocalizedError)?.errorDescription
                         ?? "Couldn't finish Apple sign-in. Try email instead."
+                    AnalyticsErrorReporter.report(error, context: "onboarding.auth.apple")
                 }
             }
         case .failure(let error):

@@ -1,7 +1,15 @@
 import SwiftUI
 
 extension AppStore {
-    func setEnergy(_ level: EnergyLevel) {
+    func setEnergy(_ level: EnergyLevel, source: String = "checkin") {
+        if let prev = energyLevel, prev != level {
+            Analytics.track(.energyChanged(from: prev.rawValue, to: level.rawValue, source: source))
+        } else if energyLevel == nil {
+            Analytics.track(.energySet(level: level.rawValue, source: source))
+        }
+        if level == .foggy {
+            Analytics.track(.foggyRestChosen)
+        }
         withAnimation(.spring(response: 0.32, dampingFraction: 0.85)) {
             energyLevel = level
             energySetAt = Date()
@@ -9,6 +17,7 @@ extension AppStore {
             peekList = false
         }
         fireEnergyHaptic(level)
+        WidgetSnapshotWriter.refresh(store: self, context: nil)
     }
 
     /// Energy-matched sort for the regular task list. Routine tasks are

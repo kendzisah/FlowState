@@ -30,9 +30,16 @@ extension AppStore {
             timerSecondsRemaining = 0
         }
 
+        Analytics.track(.timerStarted(
+            taskID: task.id.uuidString,
+            durationSeconds: timerMode == .countdown ? timerDurationSeconds : nil,
+            mode: timerMode == .countdown ? "countdown" : "countup"
+        ))
+
         timerRunning = true
         impactHaptic(.medium)
         startTicker()
+        WidgetSnapshotWriter.refresh(store: self, context: nil)
 
         if notificationsEnabled {
             _Concurrency.Task { await NotificationManager.requestAuthorizationIfNeeded() }
@@ -47,6 +54,7 @@ extension AppStore {
 
         let energy = energyLevel ?? .steady
         LiveActivityController.start(
+            taskID: task.id.uuidString,
             taskTitle: task.title,
             energyHex: energy.hexString,
             mode: timerMode,
@@ -58,6 +66,12 @@ extension AppStore {
 
     func setTimerDuration(_ seconds: Int?) {
         let elapsed = currentElapsed()
+        if let activeTask {
+            Analytics.track(.timerDurationChanged(
+                taskID: activeTask.id.uuidString,
+                newDurationSeconds: seconds
+            ))
+        }
 
         if let newTotal = seconds {
             timerMode = .countdown
@@ -117,10 +131,12 @@ extension AppStore {
 
     func parkTask(context: ModelContext?) {
         guard let task = activeTask else { return }
+        let elapsed = currentElapsed()
+        Analytics.track(.taskParked(taskID: task.id.uuidString, elapsedSeconds: elapsed))
         let parked = ParkedTask(
             taskId: task.id,
             taskTitle: task.title,
-            elapsedSeconds: currentElapsed()
+            elapsedSeconds: elapsed
         )
         if let context {
             context.insert(parked)
@@ -131,12 +147,32 @@ extension AppStore {
         activeTask = nil
 
         NotificationManager.cancelCompletion()
-        LiveActivityController.end()
+        // Flip the Live Activity into the Parked banner for the linger window
+        // instead of ending it immediately — gives the user a glanceable
+        // "I just parked X" confirmation on the lock screen.
+        let parkedCount: Int = {
+            guard let context else { return 0 }
+            return (try? context.fetchCount(FetchDescriptor<ParkedTask>())) ?? 0
+        }()
+        LiveActivityController.setParked(parkedCount: parkedCount)
         impactHaptic(.light)
         resetEnergyForRePrompt()
+        WidgetSnapshotWriter.refresh(store: self, context: context)
     }
 
     func completeTask(_ task: Task, context: ModelContext?) {
+        let elapsed = currentElapsed()
+        // Timer reaching zero / user tapping complete is the activation
+        // signal for paid-acquisition cohorts. AppsFlyer's mapping uses
+        // duration_seconds + energy_level for tighter ad optimisation.
+        Analytics.track(.timerCompleted(taskID: task.id.uuidString, elapsedSeconds: elapsed))
+        Analytics.track(.taskCompleted(
+            taskID: task.id.uuidString,
+            durationSeconds: elapsed,
+            energyLevel: energyLevel?.rawValue,
+            via: "timer"
+        ))
+
         task.isCompleted = true
         task.completedAt = Date()
         if let context {
@@ -147,12 +183,14 @@ extension AppStore {
         activeTask = nil
 
         NotificationManager.cancelCompletion()
-        LiveActivityController.end()
+        // Flip the Live Activity to "Session complete" for the linger window.
+        LiveActivityController.setComplete()
 
         successHaptic()
         completionDialog = CompletionDialogState(taskTitle: task.title)
 
         ReviewPromptManager.recordTaskCompletion(store: self)
+        WidgetSnapshotWriter.refresh(store: self, context: context)
     }
 
     func resumeParked(_ parked: ParkedTask, allTasks: [Task], context: ModelContext?) {
@@ -163,6 +201,10 @@ extension AppStore {
             }
             return
         }
+        Analytics.track(.taskResumed(
+            taskID: task.id.uuidString,
+            parkedDurationSeconds: parked.elapsedSeconds
+        ))
         activeTask = task
         timerElapsedSeconds = parked.elapsedSeconds
 
@@ -191,6 +233,7 @@ extension AppStore {
 
         let energy = energyLevel ?? .steady
         LiveActivityController.start(
+            taskID: task.id.uuidString,
             taskTitle: task.title,
             energyHex: energy.hexString,
             mode: timerMode,
@@ -198,5 +241,6 @@ extension AppStore {
             secondsElapsed: timerElapsedSeconds,
             totalDuration: timerDurationSeconds
         )
+        WidgetSnapshotWriter.refresh(store: self, context: context)
     }
 }

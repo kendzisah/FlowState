@@ -38,6 +38,7 @@ struct Step04Neurodivergence: View {
                         isSelected: draft.neurodivergenceSelfId == opt.id
                     ) {
                         draft.neurodivergenceSelfId = opt.id
+                        Analytics.track(.onboardingNeurodivergence(value: opt.id.rawValue))
                         _Concurrency.Task {
                             try? await _Concurrency.Task.sleep(nanoseconds: 180_000_000)
                             await MainActor.run { onContinue() }
@@ -50,6 +51,7 @@ struct Step04Neurodivergence: View {
 
             Button {
                 draft.neurodivergenceSelfId = .unknown
+                Analytics.track(.onboardingNeurodivergence(value: NeurodivergenceSelfID.unknown.rawValue))
                 onContinue()
             } label: {
                 Text("I don't know")

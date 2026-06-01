@@ -15,7 +15,9 @@ struct Step06Paywall: View {
             onClose: onContinue,
             onCompleted: { info in
                 draft.subscriptionStarted = true
-                store.entitled = info.entitlements[SubscriptionManager.proEntitlementID]?.isActive == true
+                let entitled = info.entitlements[SubscriptionManager.proEntitlementID]?.isActive == true
+                store.entitled = entitled
+                Analytics.track(.onboardingPaywallCompleted(entitled: entitled))
                 onContinue()
             }
         )

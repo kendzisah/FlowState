@@ -14,7 +14,7 @@ struct CompletionDialog: View {
         ZStack {
             palette.sheetBackdrop
                 .ignoresSafeArea()
-                .onTapGesture { dismiss() }
+                .onTapGesture { dismiss(method: "tap_backdrop") }
 
             VStack(spacing: 22) {
                 Image(systemName: "sparkles")
@@ -49,7 +49,7 @@ struct CompletionDialog: View {
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 8)
 
-                Button(action: dismiss) {
+                Button(action: { dismiss() }) {
                     Text(AppStrings.completionDismiss)
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundStyle(palette.parkedBg)
@@ -86,7 +86,10 @@ struct CompletionDialog: View {
             .padding(.horizontal, 24)
             .scaleEffect(cardScale)
         }
-        .onAppear { animateIn() }
+        .onAppear {
+            animateIn()
+            Analytics.track(.completionDialogShown(taskID: state.id.uuidString))
+        }
         .accessibilityAddTraits(.isModal)
     }
 
@@ -107,7 +110,8 @@ struct CompletionDialog: View {
         }
     }
 
-    private func dismiss() {
+    private func dismiss(method: String = "tap_button") {
+        Analytics.track(.completionDialogDismissed(taskID: state.id.uuidString, method: method))
         withAnimation(.easeIn(duration: 0.18)) {
             cardScale = 0.95
         }

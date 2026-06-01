@@ -161,6 +161,7 @@ enum AnytimeAutoSorter {
             }
             return out.isEmpty ? nil : out
         } catch {
+            AnalyticsErrorReporter.report(error, context: "ai.autosort")
             return nil
         }
     }

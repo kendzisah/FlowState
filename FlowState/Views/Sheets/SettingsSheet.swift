@@ -80,6 +80,18 @@ struct SettingsSheet: View {
         }
         .padding(.horizontal, Geometry.horizontalPadding)
         .padding(.bottom, 24)
+        .onAppear {
+            Analytics.track(.settingsOpened)
+            Analytics.screen("Settings")
+        }
+        .onChange(of: bindable.notificationsEnabled) { _, newValue in
+            Analytics.track(.notificationsToggled(value: newValue))
+            Analytics.setUserProperty(key: "notifications_enabled", value: newValue)
+        }
+        .onChange(of: bindable.themeMode) { _, newValue in
+            Analytics.track(.themeChanged(value: newValue.rawValue))
+            Analytics.setUserProperty(key: "theme_mode", value: newValue.rawValue)
+        }
         .presentationDetents([.fraction(0.55), .large])
         .presentationDragIndicator(.visible)
         .presentationCornerRadius(Geometry.sheetRadius)
@@ -94,7 +106,10 @@ struct SettingsSheet: View {
             isPresented: $showSignOutConfirm,
             titleVisibility: .visible
         ) {
-            Button("Sign out", role: .destructive) { performSignOut() }
+            Button("Sign out", role: .destructive) {
+                Analytics.track(.signoutConfirmed)
+                performSignOut()
+            }
             Button("Cancel", role: .cancel) { }
         } message: {
             Text("You'll be signed back in next time you log in.")
@@ -103,7 +118,10 @@ struct SettingsSheet: View {
             "Delete account?",
             isPresented: $showDeleteConfirm
         ) {
-            Button("Delete", role: .destructive) { performDeleteAccount() }
+            Button("Delete", role: .destructive) {
+                Analytics.track(.deleteAccountConfirmed)
+                performDeleteAccount()
+            }
             Button("Cancel", role: .cancel) { }
         } message: {
             Text("This permanently removes your account and all of its data. This can't be undone.")
@@ -217,6 +235,7 @@ struct SettingsSheet: View {
                     dismiss()
                 }
             } catch {
+                AnalyticsErrorReporter.report(error, context: "settings.delete_account")
                 await MainActor.run {
                     accountError = (error as? LocalizedError)?.errorDescription
                         ?? "Couldn't delete account. Try again."
@@ -238,7 +257,10 @@ struct SettingsSheet: View {
     /// prompts per app per year; if it's been shown too recently the tap is
     /// a silent no-op (Apple's design, not ours).
     private var rateRow: some View {
-        Button { requestReview() } label: {
+        Button {
+            Analytics.track(.reviewPromptInSettingsTapped)
+            requestReview()
+        } label: {
             HStack(spacing: 12) {
                 Image(systemName: "star.fill")
                     .font(.system(size: 15, weight: .semibold))
@@ -269,7 +291,10 @@ struct SettingsSheet: View {
     @ViewBuilder
     private var subscriptionRow: some View {
         if subs.isPro {
-            Button { showCustomerCenter = true } label: {
+            Button {
+                Analytics.track(.subscriptionManageTapped)
+                showCustomerCenter = true
+            } label: {
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Manage subscription")
@@ -293,6 +318,7 @@ struct SettingsSheet: View {
             .buttonStyle(.pressable)
         } else {
             Button {
+                Analytics.track(.goProTapped)
                 store.entitled = false
                 dismiss()
             } label: {

@@ -54,7 +54,8 @@ enum RoutineScheduler {
 
         // Migrate legacy tags into per-slot default groups, then load every
         // group for this user so we can iterate groups (not tags) below.
-        let groupsBySlot = ensureDefaultGroups(for: routines, userID: userID, in: context)
+        ensureDefaultGroups(for: routines, userID: userID, in: context)
+
         let allGroups = (try? context.fetch(
             FetchDescriptor<RoutineGroup>(predicate: #Predicate { g in
                 g.userID == userID || g.userID == nil
@@ -85,9 +86,12 @@ enum RoutineScheduler {
             guard group.recurrence.coversToday(from: group.createdAt, calendar: calendar) else { continue }
 
             let groupRoutines = routinesByGroup[group.id] ?? []
-            let hour = defaultHour[group.slot] ?? 8
+            // Prefer the user-picked reminder time. Legacy groups without one
+            // fall back to the slot's default hour so they keep firing.
+            let hour = group.reminderHour ?? defaultHour[group.slot] ?? 8
+            let minute = group.reminderMinute ?? 0
             let scheduledAt = calendar.date(
-                bySettingHour: hour, minute: 0, second: 0, of: startOfToday
+                bySettingHour: hour, minute: minute, second: 0, of: startOfToday
             ) ?? startOfToday
 
             for routine in groupRoutines {
@@ -130,9 +134,6 @@ enum RoutineScheduler {
             }
             group.lastGeneratedDay = startOfToday
         }
-
-        // Belt-and-suspenders: silence unused warning if no slot was touched.
-        _ = groupsBySlot
 
         if dirty {
             try? context.save()

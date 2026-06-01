@@ -55,6 +55,16 @@ struct PaywallView: View {
             withAnimation(.easeInOut(duration: 2.6).repeatForever(autoreverses: true)) {
                 heroPulse = true
             }
+            // `source` distinguishes the two presentation contexts so
+            // attribution dashboards can split paywall conversion rate
+            // between the onboarding step and the root entitlement gate.
+            Analytics.track(.paywallShown(
+                source: onClose == nil ? "gate" : "onboarding",
+                offeringsLoaded: offering != nil
+            ))
+            Analytics.screen("Paywall", properties: [
+                "source": onClose == nil ? "gate" : "onboarding",
+            ])
         }
     }
 
@@ -346,13 +356,21 @@ struct PaywallView: View {
         } else if let offering {
             VStack(spacing: 10) {
                 sectionLabel("CHOOSE YOUR PLAN")
-                VStack(spacing: 10) {
-                    ForEach(offering.availablePackages, id: \.identifier) { pkg in
+                HStack(spacing: 10) {
+                    // Ascending price so the cheapest option anchors first
+                    // and the higher-value plans read as upgrades from there.
+                    ForEach(sortedPackages(offering.availablePackages), id: \.identifier) { pkg in
                         PackageRow(
                             package: pkg,
                             isSelected: pkg.identifier == selectedPackage?.identifier
                         ) {
                             selectedPackage = pkg
+                            Analytics.track(.paywallPackageSelected(
+                                packageID: pkg.identifier,
+                                price: NSDecimalNumber(decimal: pkg.storeProduct.price).doubleValue,
+                                currency: pkg.storeProduct.currencyCode ?? "USD",
+                                hasTrial: pkg.storeProduct.introductoryDiscount?.paymentMode == .freeTrial
+                            ))
                         }
                     }
                 }
@@ -410,35 +428,30 @@ struct PaywallView: View {
 
     private var footer: some View {
         VStack(spacing: 10) {
-            Button {
-                _Concurrency.Task { await restore() }
-            } label: {
-                HStack(spacing: 6) {
-                    if isRestoring {
-                        ProgressView().scaleEffect(0.75)
-                    }
-                    Text(isRestoring ? "Restoring…" : "Restore purchases")
-                        .font(.system(size: 14, weight: .semibold))
-                }
-                .foregroundStyle(palette.textSecondary)
-            }
-            .disabled(isRestoring)
-
-            // App Review Guideline 3.1.2(a) — auto-renewable subscriptions
-            // must disclose renewal mechanics + functional links to Terms
-            // and Privacy. Wording follows Apple's recommended template.
-            Text("Payment will be charged to your Apple ID at confirmation of purchase. Subscription automatically renews unless canceled at least 24 hours before the end of the current period. Your account will be charged for renewal within 24 hours prior to the end of the current period. Manage or cancel anytime in Settings → Apple ID → Subscriptions.")
-                .font(.system(size: 10, weight: .medium))
-                .foregroundStyle(palette.textDimmed)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 8)
-                .fixedSize(horizontal: false, vertical: true)
-
             HStack(spacing: 14) {
                 Link("Terms of Use", destination: Self.termsURL)
+                    .simultaneousGesture(TapGesture().onEnded {
+                        Analytics.track(.paywallTermsTapped)
+                    })
                 Text("·")
                     .foregroundStyle(palette.textDimmed)
                 Link("Privacy Policy", destination: Self.privacyURL)
+                    .simultaneousGesture(TapGesture().onEnded {
+                        Analytics.track(.paywallPrivacyTapped)
+                    })
+                Text("·")
+                    .foregroundStyle(palette.textDimmed)
+                Button {
+                    _Concurrency.Task { await restore() }
+                } label: {
+                    HStack(spacing: 4) {
+                        if isRestoring {
+                            ProgressView().scaleEffect(0.6)
+                        }
+                        Text(isRestoring ? "Restoring…" : "Restore")
+                    }
+                }
+                .disabled(isRestoring)
             }
             .font(.system(size: 11, weight: .semibold))
             .tint(palette.textSecondary)
@@ -457,7 +470,10 @@ struct PaywallView: View {
         VStack {
             HStack {
                 Spacer()
-                Button(action: action) {
+                Button(action: {
+                    Analytics.track(.paywallDismissed(source: "onboarding", action: "x_tap"))
+                    action()
+                }) {
                     Image(systemName: "xmark")
                         .font(.system(size: 13, weight: .bold))
                         .foregroundStyle(palette.textSecondary)
@@ -507,6 +523,13 @@ struct PaywallView: View {
         return "\(price) / \(period). Cancel anytime."
     }
 
+    /// Sort packages by `storeProduct.price` ascending so the cheapest plan
+    /// renders first. We compare the raw `Decimal` directly — same units
+    /// because RC normalizes per-locale currency to a single value.
+    private func sortedPackages(_ packages: [Package]) -> [Package] {
+        packages.sorted { $0.storeProduct.price < $1.storeProduct.price }
+    }
+
     private func periodLabel(for pkg: Package) -> String {
         switch pkg.packageType {
         case .annual:   return "year"
@@ -524,45 +547,81 @@ struct PaywallView: View {
 
     private func loadOfferings() async {
         loadError = nil
+        let startedAt = Date()
         do {
             let offerings = try await Purchases.shared.offerings()
             let current = offerings.current
+            let latency = Int(Date().timeIntervalSince(startedAt) * 1000)
             await MainActor.run {
                 self.offering = current
                 self.selectedPackage = current?.annual
                     ?? current?.availablePackages.first
             }
+            Analytics.track(.paywallOfferingsLoaded(
+                packageCount: current?.availablePackages.count ?? 0,
+                latencyMs: latency
+            ))
         } catch {
             await MainActor.run {
                 self.loadError = error.localizedDescription
             }
+            Analytics.track(.paywallOfferingsFailed(error: error.localizedDescription))
+            AnalyticsErrorReporter.report(error, context: "paywall.offerings")
         }
     }
 
     private func purchase() async {
         guard let pkg = selectedPackage else { return }
+        let hasTrial = pkg.storeProduct.introductoryDiscount?.paymentMode == .freeTrial
+        let price = NSDecimalNumber(decimal: pkg.storeProduct.price).doubleValue
+        let currency = pkg.storeProduct.currencyCode ?? "USD"
+        Analytics.track(.paywallPurchaseInitiated(
+            packageID: pkg.identifier,
+            price: price,
+            currency: currency,
+            hasTrial: hasTrial
+        ))
         isPurchasing = true
         defer { isPurchasing = false }
         do {
             let result = try await Purchases.shared.purchase(package: pkg)
-            if !result.userCancelled {
+            if result.userCancelled {
+                Analytics.track(.paywallPurchaseCancelled(packageID: pkg.identifier))
+            } else {
+                Analytics.track(.paywallPurchaseCompleted(
+                    packageID: pkg.identifier,
+                    currency: currency,
+                    isTrial: hasTrial
+                ))
                 onCompleted(result.customerInfo)
             }
         } catch {
             loadError = error.localizedDescription
+            Analytics.track(.paywallPurchaseFailed(
+                packageID: pkg.identifier,
+                error: error.localizedDescription
+            ))
+            AnalyticsErrorReporter.report(error, context: "paywall.purchase", properties: [
+                "package_id": pkg.identifier,
+            ])
         }
     }
 
     private func restore() async {
+        Analytics.track(.paywallRestoreInitiated)
         isRestoring = true
         defer { isRestoring = false }
         do {
             let info = try await Purchases.shared.restorePurchases()
-            if info.entitlements[SubscriptionManager.proEntitlementID]?.isActive == true {
+            let entitled = info.entitlements[SubscriptionManager.proEntitlementID]?.isActive == true
+            Analytics.track(.paywallRestoreCompleted(entitled: entitled))
+            if entitled {
                 onCompleted(info)
             }
         } catch {
             loadError = error.localizedDescription
+            Analytics.track(.paywallRestoreFailed(error: error.localizedDescription))
+            AnalyticsErrorReporter.report(error, context: "paywall.restore")
         }
     }
 }
@@ -724,56 +783,52 @@ private struct PackageRow: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 14) {
-                ZStack {
-                    Circle()
-                        .stroke(isSelected ? palette.parkedAccent : palette.border, lineWidth: 1.5)
-                        .frame(width: 22, height: 22)
-                    if isSelected {
-                        Circle()
-                            .fill(palette.parkedAccent)
-                            .frame(width: 12, height: 12)
-                    }
-                }
+            VStack(spacing: 6) {
+                Text(title)
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(palette.textPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
 
-                VStack(alignment: .leading, spacing: 3) {
-                    HStack(spacing: 6) {
-                        Text(title)
-                            .font(.system(size: 15, weight: .bold))
-                            .foregroundStyle(palette.textPrimary)
-                        if package.packageType == .annual {
-                            Text("BEST VALUE")
-                                .font(.system(size: 9, weight: .heavy))
-                                .tracking(1.4)
-                                .foregroundStyle(palette.onEnergy)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(
-                                    Capsule().fill(palette.parkedAccent)
-                                )
-                        }
-                    }
-                    if let days = trialDays {
-                        Text("\(days)-day free trial included")
-                            .font(.system(size: 12, weight: .medium))
+                Text(package.storeProduct.localizedPriceString)
+                    .font(.system(size: 18, weight: .heavy))
+                    .foregroundStyle(palette.textPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+
+                Text(perPeriod.isEmpty ? " " : perPeriod)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(palette.textDimmed)
+
+                // Reserve consistent space across cards so the row doesn't
+                // jitter when only some packages have a trial / badge.
+                ZStack {
+                    if package.packageType == .annual {
+                        Text("BEST VALUE")
+                            .font(.system(size: 9, weight: .heavy))
+                            .tracking(1.4)
+                            .foregroundStyle(palette.onEnergy)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Capsule().fill(palette.parkedAccent))
+                    } else if let days = trialDays {
+                        Text("\(days)-day trial")
+                            .font(.system(size: 10, weight: .semibold))
                             .foregroundStyle(palette.textSecondary)
                     } else if hasTrial {
-                        Text("Free trial included")
-                            .font(.system(size: 12, weight: .medium))
+                        Text("Free trial")
+                            .font(.system(size: 10, weight: .semibold))
                             .foregroundStyle(palette.textSecondary)
+                    } else {
+                        // Empty placeholder keeps card heights uniform.
+                        Text(" ")
+                            .font(.system(size: 10))
                     }
                 }
-                Spacer(minLength: 0)
-                VStack(alignment: .trailing, spacing: 2) {
-                    Text(package.storeProduct.localizedPriceString)
-                        .font(.system(size: 15, weight: .bold))
-                        .foregroundStyle(palette.textPrimary)
-                    Text(perPeriod)
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(palette.textDimmed)
-                }
+                .frame(height: 16)
             }
-            .padding(.horizontal, 16)
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 8)
             .padding(.vertical, 14)
             .background(
                 RoundedRectangle(cornerRadius: Geometry.cardRadius, style: .continuous)

@@ -4,6 +4,30 @@ import Observation
 enum RoutineSlot: String, Codable, CaseIterable, Identifiable {
     case morning, afternoon, evening
     var id: String { rawValue }
+
+    /// Derive the slot from a 24h hour-of-day. Boundaries:
+    ///   • 05:00–11:59 → morning
+    ///   • 12:00–16:59 → afternoon
+    ///   • 17:00–04:59 → evening
+    /// Used by `EditRoutineGroupSheet` so the user only picks a time and the
+    /// slot (used for sectioning in TaskListView) auto-classifies from it.
+    static func from(hour: Int) -> RoutineSlot {
+        switch hour {
+        case 5...11:   return .morning
+        case 12...16:  return .afternoon
+        default:       return .evening
+        }
+    }
+
+    /// Time-of-day emoji used as the default chip on new routine groups when
+    /// the user hasn't typed their own. Matches the slot's vibe.
+    var defaultEmoji: String {
+        switch self {
+        case .morning:   return "🌅"
+        case .afternoon: return "☀️"
+        case .evening:   return "🌙"
+        }
+    }
 }
 
 struct RoutineOption: Hashable, Identifiable {

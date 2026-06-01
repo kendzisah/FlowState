@@ -64,8 +64,22 @@ final class AppStore {
     }
 
     /// Notification preference. Default true; user can disable in Settings.
+    ///
+    /// `didSet` also drives routine-reminder lifecycle: flipping to `false`
+    /// cancels every pending routine notification immediately; flipping back
+    /// to `true` rebuilds them via `NotificationManager.refreshAllRoutineReminders`
+    /// on the next foreground tick (we don't have a ModelContext here).
     var notificationsEnabled: Bool = (UserDefaults.standard.object(forKey: "notificationsEnabled") as? Bool) ?? true {
-        didSet { UserDefaults.standard.set(notificationsEnabled, forKey: "notificationsEnabled") }
+        didSet {
+            UserDefaults.standard.set(notificationsEnabled, forKey: "notificationsEnabled")
+            if !notificationsEnabled {
+                NotificationManager.cancelAllRoutineReminders()
+                NotificationManager.cancelAllTaskReminders()
+                NotificationManager.cancelCompletion()
+            }
+            // Re-enabling triggers refresh from `FlowStateApp` on the next
+            // `scenePhase == .active`, which is the canonical refresh edge.
+        }
     }
 
     /// First-launch flag. Used by RootView to gate onboarding.

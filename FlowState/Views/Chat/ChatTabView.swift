@@ -339,6 +339,7 @@ struct ChatTabView: View {
                     }
                 }
             } catch OpenAIClientError.quotaExceeded {
+                AnalyticsErrorReporter.reportMessage("chat quota", context: "chat.quota", level: "warning")
                 await MainActor.run {
                     isThinking = false
                     turns.removeAll { $0.id == thinkingTurnID }
@@ -346,6 +347,7 @@ struct ChatTabView: View {
                         message: "Daily AI limit reached. Try again \(quota.formattedResetTime())."))
                 }
             } catch {
+                AnalyticsErrorReporter.report(error, context: "chat.command")
                 await MainActor.run {
                     isThinking = false
                     turns.removeAll { $0.id == thinkingTurnID }

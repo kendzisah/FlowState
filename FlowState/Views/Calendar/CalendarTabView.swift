@@ -555,6 +555,7 @@ struct CalendarTabView: View {
         for tag in tagsInGroup { modelContext.delete(tag) }
         modelContext.delete(group)
         modelContext.saveAndSync()
+        NotificationManager.refreshAllRoutineReminders(context: modelContext)
     }
 
     private func slotLabel(_ slot: RoutineSlot) -> String {
@@ -596,6 +597,7 @@ struct CalendarTabView: View {
             modelContext.delete(tag)
         }
         modelContext.saveAndSync()
+        NotificationManager.refreshAllRoutineReminders(context: modelContext)
     }
 
     private func moveItem(_ item: DayItem, to target: DayTimeSlot) {
@@ -684,11 +686,15 @@ struct CalendarTabView: View {
                     importInFlight = false
                 }
             } catch CalendarImportService.ImportError.denied {
+                Analytics.track(.calendarImportFailed(reason: "denied"))
+                AnalyticsErrorReporter.reportMessage("calendar denied", context: "calendar.import.denied", level: "warning")
                 await MainActor.run {
                     importInFlight = false
                     importError = "Calendar access was denied. You can enable it in Settings."
                 }
             } catch {
+                Analytics.track(.calendarImportFailed(reason: "other"))
+                AnalyticsErrorReporter.report(error, context: "calendar.import.other")
                 await MainActor.run {
                     importInFlight = false
                     importError = error.localizedDescription

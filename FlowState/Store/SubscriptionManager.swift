@@ -64,7 +64,7 @@ final class SubscriptionManager {
         bindingTask = _Concurrency.Task { [weak self] in
             for await info in Purchases.shared.customerInfoStream {
                 guard !_Concurrency.Task.isCancelled else { return }
-                self?.apply(info)
+                self?.updateFromStream(info)
             }
         }
     }
@@ -75,9 +75,10 @@ final class SubscriptionManager {
     func logIn(userID: String) async {
         do {
             let result = try await Purchases.shared.logIn(userID)
-            apply(result.customerInfo)
+            apply(result.customerInfo, source: "login")
         } catch {
             lastError = error.localizedDescription
+            AnalyticsErrorReporter.report(error, context: "subscription.login")
         }
     }
 
@@ -86,9 +87,10 @@ final class SubscriptionManager {
     func logOut() async {
         do {
             let info = try await Purchases.shared.logOut()
-            apply(info)
+            apply(info, source: "logout")
         } catch {
             lastError = error.localizedDescription
+            AnalyticsErrorReporter.report(error, context: "subscription.logout")
         }
     }
 
@@ -97,13 +99,36 @@ final class SubscriptionManager {
     /// correct entitlement before `isRestoring` flips to false.
     func refreshFromCache() async {
         if let info = try? await Purchases.shared.customerInfo() {
-            apply(info)
+            apply(info, source: "cache")
         }
     }
 
-    private func apply(_ info: CustomerInfo) {
+    /// Apply CustomerInfo and emit `entitlement_changed` when it flips.
+    /// `source` distinguishes the trigger ("login", "logout", "cache",
+    /// "stream") so dashboards can attribute conversions accurately.
+    private func apply(_ info: CustomerInfo, source: String = "stream") {
+        let nowEntitled = info.entitlements[Self.proEntitlementID]?.isActive == true
+        let wasEntitled = self.boundStore?.entitled ?? false
         self.customerInfo = info
-        self.boundStore?.entitled =
-            info.entitlements[Self.proEntitlementID]?.isActive == true
+        self.boundStore?.entitled = nowEntitled
+
+        if nowEntitled != wasEntitled {
+            Analytics.track(.entitlementChanged(entitled: nowEntitled, source: source))
+            Analytics.setUserProperty(key: "entitled", value: nowEntitled)
+        }
+    }
+
+    // Convenience wrapper used by the customerInfoStream subscriber so it
+    // doesn't have to specify a source.
+    fileprivate func applyFromStream(_ info: CustomerInfo) {
+        apply(info, source: "stream")
+    }
+}
+
+// Stream binding helper — kept in an extension so the source-aware `apply`
+// above can stay private without surfacing it on the public API.
+extension SubscriptionManager {
+    func updateFromStream(_ info: CustomerInfo) {
+        applyFromStream(info)
     }
 }

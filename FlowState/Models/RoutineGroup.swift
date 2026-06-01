@@ -26,6 +26,12 @@ final class RoutineGroup: Identifiable {
     /// cheap "we already processed this group today" guard during
     /// materialization.
     var lastGeneratedDay: Date?
+    /// User-picked time-of-day for the routine reminder, stored as 24h
+    /// hour + minute. When nil (legacy rows / groups created before this
+    /// field existed), `RoutineScheduler` falls back to the slot's default
+    /// hour (08/13/20).
+    var reminderHour: Int?
+    var reminderMinute: Int?
 
     var slot: RoutineSlot {
         get { RoutineSlot(rawValue: slotRaw) ?? .morning }
@@ -48,7 +54,9 @@ final class RoutineGroup: Identifiable {
         slot: RoutineSlot,
         recurrence: Recurrence = .daily,
         energy: EnergyLevel? = nil,
-        userID: String? = nil
+        userID: String? = nil,
+        reminderHour: Int? = nil,
+        reminderMinute: Int? = nil
     ) {
         self.id = UUID()
         self.title = title
@@ -59,5 +67,7 @@ final class RoutineGroup: Identifiable {
         self.userID = userID
         self.createdAt = Date()
         self.lastGeneratedDay = nil
+        self.reminderHour = reminderHour
+        self.reminderMinute = reminderMinute
     }
 }

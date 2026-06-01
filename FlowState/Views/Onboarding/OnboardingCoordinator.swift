@@ -92,11 +92,19 @@ struct OnboardingCoordinator: View {
                 )
             }
         }
-        .onChange(of: step) { _, newStep in
+        .onChange(of: step) { oldStep, newStep in
             scheduleAutoProgress(for: newStep)
+            // `step_completed` fires for the leaving step so funnel
+            // analysis sees a clean per-step transition pair.
+            Analytics.track(.onboardingStepCompleted(step: oldStep.rawValue, name: String(describing: oldStep)))
+            Analytics.track(.onboardingStepViewed(step: newStep.rawValue, name: String(describing: newStep)))
         }
         .onAppear {
             scheduleAutoProgress(for: step)
+            if step == .welcome {
+                Analytics.track(.onboardingStarted)
+                Analytics.track(.onboardingStepViewed(step: step.rawValue, name: String(describing: step)))
+            }
         }
     }
 
@@ -151,10 +159,23 @@ struct OnboardingCoordinator: View {
         guard !isCommitting else { return }
         isCommitting = true
         OnboardingPersistence.commit(draft: draft, store: store, modelContext: modelContext)
+        Analytics.track(.onboardingCommitted)
+        // Now that profile fields are persisted to AppStore, re-identify
+        // with the full trait set so PostHog person properties reflect
+        // primary_need / neurodivergence / marketing_optin from this user.
+        if let uid = AuthManager.shared.currentUserID {
+            Analytics.identify(userID: uid, traits: store.analyticsTraits())
+        }
         advance()
     }
 
     private func finishOnboarding() {
+        let totalRoutines = draft.morningRoutines.count + draft.afternoonRoutines.count + draft.eveningRoutines.count
+        Analytics.track(.onboardingCompleted(
+            totalSteps: OnboardingStep.total,
+            routinesCount: totalRoutines,
+            tasksCount: draft.selectedTasks.count
+        ))
         withAnimation(.easeInOut(duration: 0.32)) {
             store.hasCompletedOnboarding = true
         }
@@ -180,6 +201,7 @@ struct OnboardingCoordinator: View {
     /// (they're a returning user — their server-side profile already exists).
     /// Routing falls through to .paywall or .home depending on entitlement.
     private func skipToEnd() {
+        Analytics.track(.onboardingSkipped(fromStep: step.rawValue, name: String(describing: step)))
         withAnimation(.easeInOut(duration: 0.32)) {
             store.hasCompletedOnboarding = true
         }

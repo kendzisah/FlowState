@@ -71,5 +71,10 @@ enum OnboardingPersistence {
             context: modelContext,
             userID: AuthManager.shared.currentUserID
         )
+
+        // Schedule reminders for every freshly-created group so a user who
+        // sets up "Morning routine at 8am" during onboarding actually gets a
+        // buzz tomorrow morning — not on the next foreground.
+        NotificationManager.refreshAllRoutineReminders(context: modelContext)
     }
 }

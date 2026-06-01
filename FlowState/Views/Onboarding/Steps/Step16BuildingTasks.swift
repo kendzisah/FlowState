@@ -53,6 +53,7 @@ struct Step16BuildingTasks: View {
             do {
                 tasks = try await TaskExtractor.extract(from: draft.weeklyIntentText)
             } catch {
+                AnalyticsErrorReporter.report(error, context: "onboarding.ai.generate")
                 tasks = TaskExtractor.ruleBasedFallback(from: draft.weeklyIntentText)
             }
 
@@ -62,6 +63,8 @@ struct Step16BuildingTasks: View {
             if elapsed < minHold {
                 try? await _Concurrency.Task.sleep(nanoseconds: UInt64((minHold - elapsed) * 1_000_000_000))
             }
+            let totalMs = Int(Date().timeIntervalSince(started) * 1000)
+            Analytics.track(.onboardingTasksGenerated(taskCount: tasks.count, durationMs: totalMs))
 
             await MainActor.run {
                 draft.generatedTasks = tasks

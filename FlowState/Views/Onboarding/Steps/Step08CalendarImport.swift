@@ -53,20 +53,34 @@ struct Step08CalendarImport: View {
     private func runImport() {
         importing = true
         errorMessage = nil
+        Analytics.track(.calendarImportStarted)
+        Analytics.track(.calendarPermissionRequested)
+        let startedAt = Date()
         _Concurrency.Task {
             do {
-                _ = try await CalendarImportService.importNext14Days(into: modelContext)
+                let summary = try await CalendarImportService.importNext14Days(into: modelContext)
+                let latency = Int(Date().timeIntervalSince(startedAt) * 1000)
+                Analytics.track(.calendarPermissionResult(granted: true))
+                let eventCount = summary.inserted + summary.updated
+                Analytics.track(.calendarImportSucceeded(eventCount: eventCount, latencyMs: latency))
+                Analytics.track(.onboardingCalendarImported(eventCount: eventCount, granted: true))
                 await MainActor.run {
                     draft.calendarGranted = true
                     importing = false
                     onContinue()
                 }
             } catch CalendarImportService.ImportError.denied {
+                Analytics.track(.calendarPermissionResult(granted: false))
+                Analytics.track(.calendarImportFailed(reason: "denied"))
+                Analytics.track(.onboardingCalendarImported(eventCount: 0, granted: false))
+                AnalyticsErrorReporter.reportMessage("calendar denied", context: "onboarding.calendar.denied", level: "warning")
                 await MainActor.run {
                     importing = false
                     errorMessage = "Calendar access was denied. You can enable it later in Settings."
                 }
             } catch {
+                Analytics.track(.calendarImportFailed(reason: "other"))
+                AnalyticsErrorReporter.report(error, context: "onboarding.calendar.other")
                 await MainActor.run {
                     importing = false
                     errorMessage = "Couldn't import calendar. \(error.localizedDescription)"

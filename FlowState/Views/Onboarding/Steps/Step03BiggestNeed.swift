@@ -41,6 +41,7 @@ struct Step03BiggestNeed: View {
                             isSelected: draft.primaryNeed == opt.id
                         ) {
                             draft.primaryNeed = opt.id
+                            Analytics.track(.onboardingPrimaryNeed(value: opt.id.rawValue))
                             // Snappy advance — Tiimo pattern
                             _Concurrency.Task {
                                 try? await _Concurrency.Task.sleep(nanoseconds: 180_000_000)
@@ -53,6 +54,7 @@ struct Step03BiggestNeed: View {
 
             Button {
                 draft.primaryNeed = .other
+                Analytics.track(.onboardingPrimaryNeed(value: PrimaryNeed.other.rawValue))
                 onContinue()
             } label: {
                 Text("Something else")

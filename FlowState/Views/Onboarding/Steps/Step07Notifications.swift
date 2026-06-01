@@ -47,9 +47,12 @@ struct Step07Notifications: View {
 
     private func requestPermission() {
         requesting = true
+        Analytics.track(.notificationsPermissionRequested)
         _Concurrency.Task {
             let center = UNUserNotificationCenter.current()
             let granted = (try? await center.requestAuthorization(options: [.alert, .sound, .badge])) ?? false
+            Analytics.track(.notificationsPermissionResult(granted: granted))
+            Analytics.track(.onboardingNotificationsChoice(granted: granted))
             await MainActor.run {
                 draft.notificationsGranted = granted
                 requesting = false

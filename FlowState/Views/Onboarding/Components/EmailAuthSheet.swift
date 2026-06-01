@@ -239,6 +239,7 @@ struct EmailAuthSheet: View {
                 case .signUp:
                     try await AuthManager.shared.signUp(email: trimmedEmail, password: password)
                     draft.userEmail = trimmedEmail
+                    Analytics.track(.onboardingAccountCreated(method: "email"))
                     onAuthenticated(.signUp)
                 case .signIn:
                     try await AuthManager.shared.signIn(email: trimmedEmail, password: password)
@@ -250,6 +251,9 @@ struct EmailAuthSheet: View {
                 }
             } catch {
                 errorText = (error as? LocalizedError)?.errorDescription ?? "Something went wrong."
+                // Auth-flow events already fired via AuthManager.signUp/signIn
+                // failure tracking — but capture the underlying error too.
+                AnalyticsErrorReporter.report(error, context: "onboarding.auth.email", properties: ["mode": String(describing: mode)])
             }
             isWorking = false
         }

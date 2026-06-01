@@ -19,12 +19,18 @@ struct EditRoutineGroupSheet: View {
     @State private var title: String = ""
     @State private var emoji: String = ""
     @State private var slot: RoutineSlot = .morning
+    @State private var reminderTime: Date = Date()
     @State private var recurrence: Recurrence = .daily
     @State private var energy: EnergyLevel? = nil
     @State private var didSeed: Bool = false
     @State private var showDeleteConfirm: Bool = false
 
     private var isEditing: Bool { group != nil }
+
+    /// Emojis we auto-seeded as defaults. Only overwrite the emoji field when
+    /// the user changes the time if the current emoji is still one of these —
+    /// otherwise we'd clobber a user-typed emoji.
+    private static let timeEmojis: Set<String> = ["🌅", "☀️", "🌙"]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 22) {
@@ -65,15 +71,11 @@ struct EditRoutineGroupSheet: View {
             }
 
             VStack(alignment: .leading, spacing: 10) {
-                Text("Time of day")
+                Text("Reminder time")
                     .font(AppFont.caption)
                     .tracking(0.6)
                     .foregroundStyle(palette.textSecondary)
-                HStack(spacing: 10) {
-                    ForEach(RoutineSlot.allCases, id: \.self) { s in
-                        slotChip(s)
-                    }
-                }
+                reminderTimeRow
             }
 
             recurrenceRow
@@ -128,6 +130,34 @@ struct EditRoutineGroupSheet: View {
     }
 
     // MARK: - Rows
+
+    private var reminderTimeRow: some View {
+        HStack(spacing: 12) {
+            Image(systemName: slotIconName(slot))
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(palette.textSecondary)
+                .frame(width: 22)
+            Text(slotLabel(slot))
+                .font(AppFont.body)
+                .foregroundStyle(palette.textPrimary)
+            Spacer()
+            DatePicker(
+                "",
+                selection: $reminderTime,
+                displayedComponents: .hourAndMinute
+            )
+            .labelsHidden()
+            .tint(palette.energySteady)
+        }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: Geometry.buttonRadius, style: .continuous)
+                .fill(palette.surfaceAlt)
+        )
+        .onChange(of: reminderTime) { _, newValue in
+            updateSlotAndEmoji(for: newValue)
+        }
+    }
 
     private var recurrenceRow: some View {
         Menu {
@@ -214,24 +244,15 @@ struct EditRoutineGroupSheet: View {
         }
     }
 
-    private func slotChip(_ s: RoutineSlot) -> some View {
-        let on = slot == s
-        return Button {
-            slot = s
-        } label: {
-            HStack(spacing: 6) {
-                Image(systemName: slotIconName(s))
-                    .font(.system(size: 13, weight: .semibold))
-                Text(slotLabel(s))
-                    .font(.system(size: 14, weight: .semibold))
-            }
-            .foregroundStyle(on ? palette.onEnergy : palette.textPrimary)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
-            .frame(minHeight: 44)
-            .background(Capsule().fill(on ? palette.energySteady : palette.surfaceAlt))
+    /// Recompute the derived slot from the picked time, and refresh the
+    /// default emoji *only* if the user hasn't already typed their own.
+    private func updateSlotAndEmoji(for date: Date) {
+        let hour = Calendar.current.component(.hour, from: date)
+        let newSlot = RoutineSlot.from(hour: hour)
+        slot = newSlot
+        if emoji.isEmpty || Self.timeEmojis.contains(emoji) {
+            emoji = newSlot.defaultEmoji
         }
-        .buttonStyle(.pressable)
     }
 
     private func slotIconName(_ s: RoutineSlot) -> String {
@@ -258,17 +279,42 @@ struct EditRoutineGroupSheet: View {
 
     private func seedIfNeeded() {
         guard !didSeed else { return }
+        let calendar = Calendar.current
         if let group {
             title = group.title
             emoji = group.emoji ?? ""
             slot = group.slot
             recurrence = group.recurrence
             energy = group.energy
+            // Rehydrate the time picker from stored hour/minute if present;
+            // otherwise fall back to the slot's legacy default hour.
+            let hour = group.reminderHour ?? defaultHourForLegacy(slot: group.slot)
+            let minute = group.reminderMinute ?? 0
+            reminderTime = calendar.date(
+                bySettingHour: hour, minute: minute, second: 0, of: Date()
+            ) ?? Date()
         } else {
             slot = defaultSlot
             recurrence = .daily
+            reminderTime = calendar.date(
+                bySettingHour: defaultHourForLegacy(slot: defaultSlot),
+                minute: 0, second: 0, of: Date()
+            ) ?? Date()
+            // Seed a time-appropriate emoji so the user has something
+            // sensible without having to type one.
+            emoji = defaultSlot.defaultEmoji
         }
         didSeed = true
+    }
+
+    /// Mirrors `RoutineScheduler.defaultHour` for legacy groups that don't
+    /// have a `reminderHour` stored yet.
+    private func defaultHourForLegacy(slot: RoutineSlot) -> Int {
+        switch slot {
+        case .morning:   return 8
+        case .afternoon: return 13
+        case .evening:   return 20
+        }
     }
 
     private func save() {
@@ -276,6 +322,9 @@ struct EditRoutineGroupSheet: View {
         guard !trimmed.isEmpty else { return }
         let normalizedEmoji = emoji.isEmpty ? nil : emoji
         let normalizedRecurrence = recurrence == .none ? .daily : recurrence
+        let calendar = Calendar.current
+        let pickedHour = calendar.component(.hour, from: reminderTime)
+        let pickedMinute = calendar.component(.minute, from: reminderTime)
 
         if let group {
             group.title = trimmed
@@ -283,6 +332,8 @@ struct EditRoutineGroupSheet: View {
             group.slot = slot
             group.recurrence = normalizedRecurrence
             group.energy = energy
+            group.reminderHour = pickedHour
+            group.reminderMinute = pickedMinute
         } else {
             let userID = AuthManager.shared.currentUserID
             let g = RoutineGroup(
@@ -291,7 +342,9 @@ struct EditRoutineGroupSheet: View {
                 slot: slot,
                 recurrence: normalizedRecurrence,
                 energy: energy,
-                userID: userID
+                userID: userID,
+                reminderHour: pickedHour,
+                reminderMinute: pickedMinute
             )
             context.insert(g)
             // No materialize call here — an empty group has no items to
@@ -299,6 +352,7 @@ struct EditRoutineGroupSheet: View {
             // the next pass on the user's next foreground.
         }
         context.saveAndSync()
+        NotificationManager.refreshAllRoutineReminders(context: context)
         dismiss()
     }
 
@@ -319,6 +373,7 @@ struct EditRoutineGroupSheet: View {
         for tag in tags { context.delete(tag) }
         context.delete(g)
         context.saveAndSync()
+        NotificationManager.refreshAllRoutineReminders(context: context)
         dismiss()
     }
 }

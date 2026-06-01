@@ -79,6 +79,7 @@ struct OpenAIClient {
         do {
             (data, response) = try await URLSession.shared.data(for: request)
         } catch {
+            AnalyticsErrorReporter.report(error, context: "ai.openai.request")
             throw OpenAIClientError.network(error)
         }
 
@@ -184,9 +185,12 @@ enum TaskExtractor {
                 }
             }
         } catch OpenAIClientError.quotaExceeded(let resetsAt) {
+            Analytics.track(.chatQuotaExceeded(resetsAt: ISO8601DateFormatter().string(from: resetsAt)))
+            AnalyticsErrorReporter.reportMessage("AI quota exceeded", context: "ai.openai.quota", level: "warning")
             throw OpenAIClientError.quotaExceeded(resetsAt: resetsAt)
         } catch {
             // Non-quota AI failure — fall through to rule-based.
+            AnalyticsErrorReporter.report(error, context: "ai.openai.other")
         }
 
         return ruleBasedFallback(from: trimmed)

@@ -53,15 +53,23 @@ final class SyncEngine {
         isSyncing = true
         lastSyncError = nil
         defer { isSyncing = false }
+        Analytics.track(.syncRunStarted(kind: "full"))
+        let startedAt = Date()
 
         claimOrphans(context: context, userID: userID)
         do {
             try await pushDirty(context: context, userID: userID)
             try await pullRemote(context: context, userID: userID)
             lastSyncAt = Date()
+            Analytics.track(.syncRunSucceeded(
+                latencyMs: Int(Date().timeIntervalSince(startedAt) * 1000),
+                recordCount: 0
+            ))
         } catch {
             lastSyncError = (error as? LocalizedError)?.errorDescription
                 ?? "\(error)"
+            Analytics.track(.syncRunFailed(kind: "full", reason: lastSyncError ?? "unknown"))
+            AnalyticsErrorReporter.report(error, context: "sync.full")
         }
     }
 
@@ -94,7 +102,9 @@ final class SyncEngine {
                 try? context.save()
             }
         } catch {
-            // Non-fatal; the next sync will retry.
+            // Non-fatal; the next sync will retry. Recorded as warning so
+            // we can spot persistent claim-orphan failures.
+            AnalyticsErrorReporter.report(error, context: "sync.claimOrphans")
         }
     }
 

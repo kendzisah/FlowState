@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A001111111111111111100A0 /* AppsFlyerLib-Dynamic in Frameworks */ = {isa = PBXBuildFile; productRef = A002222222222222222200A0 /* AppsFlyerLib-Dynamic */; };
+		B001111111111111111100B0 /* PostHog in Frameworks */ = {isa = PBXBuildFile; productRef = B002222222222222222200B0 /* PostHog */; };
 		BE42585B2FAC8403007F616B /* ReceiptParser in Frameworks */ = {isa = PBXBuildFile; productRef = BE42585A2FAC8403007F616B /* ReceiptParser */; };
 		BE42585D2FAC8403007F616B /* RevenueCat in Frameworks */ = {isa = PBXBuildFile; productRef = BE42585C2FAC8403007F616B /* RevenueCat */; };
 		BE42585F2FAC8403007F616B /* RevenueCatUI in Frameworks */ = {isa = PBXBuildFile; productRef = BE42585E2FAC8403007F616B /* RevenueCatUI */; };
@@ -92,6 +94,8 @@
 				BE42585D2FAC8403007F616B /* RevenueCat in Frameworks */,
 				BE42585B2FAC8403007F616B /* ReceiptParser in Frameworks */,
 				BE42585F2FAC8403007F616B /* RevenueCatUI in Frameworks */,
+				A001111111111111111100A0 /* AppsFlyerLib-Dynamic in Frameworks */,
+				B001111111111111111100B0 /* PostHog in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -161,6 +165,8 @@
 				BE42585A2FAC8403007F616B /* ReceiptParser */,
 				BE42585C2FAC8403007F616B /* RevenueCat */,
 				BE42585E2FAC8403007F616B /* RevenueCatUI */,
+				A002222222222222222200A0 /* AppsFlyerLib-Dynamic */,
+				B002222222222222222200B0 /* PostHog */,
 			);
 			productName = FlowState;
 			productReference = BE780A7C2F9EC50A004C4F29 /* FlowState.app */;
@@ -217,6 +223,8 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				BE4258592FAC8402007F616B /* XCRemoteSwiftPackageReference "purchases-ios-spm" */,
+				A003333333333333333300A0 /* XCRemoteSwiftPackageReference "AppsFlyerFramework-Dynamic" */,
+				B003333333333333333300B0 /* XCRemoteSwiftPackageReference "posthog-ios" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = BE780A7D2F9EC50A004C4F29 /* Products */;
@@ -405,6 +413,7 @@
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = FlowState/Info.plist;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_NSSupportsLiveActivitiesFrequentUpdates = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
@@ -456,6 +465,7 @@
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = FlowState/Info.plist;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_NSSupportsLiveActivitiesFrequentUpdates = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
@@ -496,8 +506,9 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = FlowStateActivityExtension/FlowStateActivityExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = NGFWFKBJU2;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = FlowStateActivityExtension/Info.plist;
@@ -509,7 +520,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.flocktechnologies.FlowState.FlowStateActivityExtension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -528,8 +539,9 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = FlowStateActivityExtension/FlowStateActivityExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = NGFWFKBJU2;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = FlowStateActivityExtension/Info.plist;
@@ -541,7 +553,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.flocktechnologies.FlowState.FlowStateActivityExtension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -589,6 +601,22 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		A003333333333333333300A0 /* XCRemoteSwiftPackageReference "AppsFlyerFramework-Dynamic" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/AppsFlyerSDK/AppsFlyerFramework-Dynamic";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 6.14.0;
+			};
+		};
+		B003333333333333333300B0 /* XCRemoteSwiftPackageReference "posthog-ios" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/PostHog/posthog-ios.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 3.58.0;
+			};
+		};
 		BE4258592FAC8402007F616B /* XCRemoteSwiftPackageReference "purchases-ios-spm" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/RevenueCat/purchases-ios-spm.git";
@@ -600,6 +628,16 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		A002222222222222222200A0 /* AppsFlyerLib-Dynamic */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A003333333333333333300A0 /* XCRemoteSwiftPackageReference "AppsFlyerFramework-Dynamic" */;
+			productName = "AppsFlyerLib-Dynamic";
+		};
+		B002222222222222222200B0 /* PostHog */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B003333333333333333300B0 /* XCRemoteSwiftPackageReference "posthog-ios" */;
+			productName = PostHog;
+		};
 		BE42585A2FAC8403007F616B /* ReceiptParser */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = BE4258592FAC8402007F616B /* XCRemoteSwiftPackageReference "purchases-ios-spm" */;

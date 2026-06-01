@@ -39,6 +39,9 @@ struct Step02MarketingOptIn: View {
             Spacer()
 
             OnbPrimaryButton(title: "Continue", enabled: draft.marketingOptIn != nil) {
+                if let v = draft.marketingOptIn {
+                    Analytics.track(.onboardingMarketingOptIn(value: v))
+                }
                 onContinue()
             }
 

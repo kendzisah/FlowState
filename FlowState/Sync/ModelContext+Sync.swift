@@ -57,5 +57,17 @@ extension ModelContext {
                 await SyncEngine.shared.runFullSync(context: self)
             }
         }
+
+        // Refresh widgets after every persisted mutation so the home-screen
+        // surfaces (Top 3, Parked Queue, Recommendation) reflect the latest
+        // task list within a second of the change.
+        if let appStore = AppStore.activeInstanceForWidgetRefresh {
+            WidgetSnapshotWriter.refresh(store: appStore, context: self)
+        }
+
+        // Rebuild scheduled-task notifications. Cheap drop-and-rebuild over
+        // the (typically tiny) set of scheduled, non-completed, non-routine
+        // tasks. Routine reminders refresh from their own sheet save paths.
+        NotificationManager.refreshAllTaskReminders(context: self)
     }
 }

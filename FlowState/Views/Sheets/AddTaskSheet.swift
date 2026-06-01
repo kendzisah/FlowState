@@ -338,16 +338,27 @@ struct AddTaskSheet: View {
         let assignable = EnergyLevel.taskAssignable.contains(level) ? level : .steady
 
         if let task = editing {
+            var changed: [String] = []
+            if task.title != trimmed { changed.append("title") }
+            if task.energyTag != assignable { changed.append("energy") }
+            if task.scheduledDate != scheduledDate { changed.append("schedule") }
+            if task.recurrence != recurrence { changed.append("recurrence") }
             task.title = trimmed
             task.energyTag = assignable
             task.scheduledDate = scheduledDate
             task.recurrence = recurrence
             task.markDirty()
+            Analytics.track(.taskEdited(taskID: task.id.uuidString, changedFields: changed))
         } else {
             let task = Task(title: trimmed, energyTag: assignable)
             task.scheduledDate = scheduledDate
             task.recurrence = recurrence
             context.insert(task)
+            Analytics.track(.taskCreated(
+                source: "manual",
+                energyLevel: assignable.rawValue,
+                hasDuration: scheduledDate != nil
+            ))
         }
         context.saveAndSync()
         dismiss()

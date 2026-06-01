@@ -86,15 +86,31 @@ final class AuthManager {
     // MARK: - Public actions
 
     func signUp(email: String, password: String) async throws {
-        let body: [String: Any] = ["email": email, "password": password]
-        let response: AuthTokenResponse = try await postJSON("/auth/v1/signup", body: body)
-        try await persist(response.toSession())
+        Analytics.track(.signupStarted(method: "email"))
+        do {
+            let body: [String: Any] = ["email": email, "password": password]
+            let response: AuthTokenResponse = try await postJSON("/auth/v1/signup", body: body)
+            try await persist(response.toSession(), method: "email", isNewAccount: true)
+        } catch {
+            let (reason, status) = Self.describe(error)
+            Analytics.track(.signupFailed(method: "email", reason: reason, httpStatus: status))
+            AnalyticsErrorReporter.report(error, context: "auth.signup", properties: ["method": "email"])
+            throw error
+        }
     }
 
     func signIn(email: String, password: String) async throws {
-        let body: [String: Any] = ["email": email, "password": password]
-        let response: AuthTokenResponse = try await postJSON("/auth/v1/token?grant_type=password", body: body)
-        try await persist(response.toSession())
+        Analytics.track(.signinStarted(method: "email"))
+        do {
+            let body: [String: Any] = ["email": email, "password": password]
+            let response: AuthTokenResponse = try await postJSON("/auth/v1/token?grant_type=password", body: body)
+            try await persist(response.toSession(), method: "email", isNewAccount: false)
+        } catch {
+            let (reason, status) = Self.describe(error)
+            Analytics.track(.signinFailed(method: "email", reason: reason, httpStatus: status))
+            AnalyticsErrorReporter.report(error, context: "auth.signin", properties: ["method": "email"])
+            throw error
+        }
     }
 
     /// Exchange an Apple identity token for a Supabase session. The `nonce`
@@ -102,13 +118,25 @@ final class AuthManager {
     /// `ASAuthorizationAppleIDRequest.nonce`. Supabase verifies the JWT
     /// signature using Apple's published keys and the nonce.
     func signInWithApple(idToken: String, nonce: String) async throws {
-        let body: [String: Any] = [
-            "provider": "apple",
-            "id_token": idToken,
-            "nonce": nonce,
-        ]
-        let response: AuthTokenResponse = try await postJSON("/auth/v1/token?grant_type=id_token", body: body)
-        try await persist(response.toSession())
+        Analytics.track(.signinStarted(method: "apple"))
+        do {
+            let body: [String: Any] = [
+                "provider": "apple",
+                "id_token": idToken,
+                "nonce": nonce,
+            ]
+            let response: AuthTokenResponse = try await postJSON("/auth/v1/token?grant_type=id_token", body: body)
+            // Apple flow can be either first-time or returning — Supabase
+            // upserts. We track as signin; if the user was new, Supabase
+            // emits a different created_at — analyzers can derive net-new
+            // users from that. Avoids needing a second round-trip.
+            try await persist(response.toSession(), method: "apple", isNewAccount: false)
+        } catch {
+            let (reason, status) = Self.describe(error)
+            Analytics.track(.signinFailed(method: "apple", reason: reason, httpStatus: status))
+            AnalyticsErrorReporter.report(error, context: "auth.signin", properties: ["method": "apple"])
+            throw error
+        }
     }
 
     func requestPasswordReset(email: String) async throws {
@@ -117,6 +145,7 @@ final class AuthManager {
     }
 
     func signOut() async {
+        Analytics.track(.signout)
         if let token = session?.accessToken {
             // Best-effort revoke. If the network is down, we still clear local.
             _ = try? await postEmpty("/auth/v1/logout", body: [:], bearerToken: token)
@@ -130,6 +159,7 @@ final class AuthManager {
     /// then clear local state.
     func deleteAccount() async throws {
         guard let session else { throw AuthError.notAuthenticated }
+        Analytics.track(.accountDeleted)
         try await callEdgeFunction(
             name: "account-delete",
             body: [:],
@@ -180,19 +210,44 @@ final class AuthManager {
 
     private func refreshIfNeeded() async throws {
         guard let stored = session else { return }
-        let body: [String: Any] = ["refresh_token": stored.refreshToken]
-        let response: AuthTokenResponse = try await postJSON("/auth/v1/token?grant_type=refresh_token", body: body)
-        try await persist(response.toSession())
+        do {
+            let body: [String: Any] = ["refresh_token": stored.refreshToken]
+            let response: AuthTokenResponse = try await postJSON("/auth/v1/token?grant_type=refresh_token", body: body)
+            try await persist(response.toSession(), method: nil, isNewAccount: false)
+        } catch {
+            let (reason, _) = Self.describe(error)
+            Analytics.track(.sessionRefreshFailed(reason: reason))
+            AnalyticsErrorReporter.report(error, context: "auth.refresh")
+            throw error
+        }
     }
 
     /// Saves the session to Keychain, then `await`s RC.logIn so the new
     /// customer info is reflected in `store.entitled` before this returns.
     /// Callers can rely on the route gate seeing the correct entitlement
     /// immediately, with no paywall-flash for returning subscribers.
-    private func persist(_ next: AuthSession) async throws {
+    ///
+    /// `method` is the auth method used (email/apple) for analytics. Pass
+    /// `nil` from refresh paths where there's no fresh signup/signin event
+    /// to emit.
+    private func persist(_ next: AuthSession, method: String?, isNewAccount: Bool) async throws {
         try AuthKeychain.save(next)
         session = next
         await SubscriptionManager.shared.logIn(userID: next.userID)
+
+        // Identify to analytics — links anonymous device events to user.
+        // Pulled from MainActor-isolated AppStore.shared if it existed;
+        // since AppStore is currently an instance owned by FlowStateApp,
+        // we identify with minimal traits here and the app re-identifies
+        // with full traits on the next .task in FlowStateApp / RootView.
+        Analytics.identify(userID: next.userID, traits: ["user_id": next.userID])
+        if let method {
+            if isNewAccount {
+                Analytics.track(.signupCompleted(method: method, userID: next.userID))
+            } else {
+                Analytics.track(.signinCompleted(method: method, userID: next.userID))
+            }
+        }
     }
 
     /// Clears the local session and disconnects from RC. Awaits RC.logOut so
@@ -201,6 +256,26 @@ final class AuthManager {
         AuthKeychain.clear()
         session = nil
         await SubscriptionManager.shared.logOut()
+        Analytics.reset()
+        // Drop the prior user's reminders so a new sign-in doesn't see
+        // notifications scheduled against another account's data.
+        NotificationManager.cancelAllRoutineReminders()
+        NotificationManager.cancelAllTaskReminders()
+    }
+
+    /// Maps an Error (typically AuthError) into a (reason, optional HTTP status)
+    /// pair suitable for analytics. Strips secret-bearing strings.
+    private static func describe(_ error: Error) -> (String, Int?) {
+        if let auth = error as? AuthError {
+            switch auth {
+            case .missingConfig:            return ("missing_config", nil)
+            case .network(let inner):       return ("network: \(inner.localizedDescription)", nil)
+            case .server(let msg, let s):   return ("server: \(msg.prefix(120))", s)
+            case .decoding:                 return ("decoding", nil)
+            case .notAuthenticated:         return ("not_authenticated", nil)
+            }
+        }
+        return (String(describing: error).prefix(120).description, nil)
     }
 
     // MARK: - HTTP
@@ -258,10 +333,14 @@ final class AuthManager {
         do {
             (data, response) = try await URLSession.shared.data(for: request)
         } catch {
+            AnalyticsErrorReporter.report(error, context: "auth.network", properties: [
+                "url": AnalyticsErrorReporter.sanitize(url: url.absoluteString),
+            ])
             throw AuthError.network(error)
         }
 
         guard let http = response as? HTTPURLResponse else {
+            AnalyticsErrorReporter.reportMessage("Non-HTTP response", context: "auth.decoding")
             throw AuthError.decoding
         }
         if !(200...299).contains(http.statusCode) {
@@ -292,6 +371,9 @@ final class AuthManager {
         do {
             (data, response) = try await URLSession.shared.data(for: request)
         } catch {
+            AnalyticsErrorReporter.report(error, context: "auth.edge.\(name)", properties: [
+                "url": AnalyticsErrorReporter.sanitize(url: url.absoluteString),
+            ])
             throw AuthError.network(error)
         }
 

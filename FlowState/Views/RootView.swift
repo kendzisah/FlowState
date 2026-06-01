@@ -1,5 +1,6 @@
 import SwiftUI
 import StoreKit
+import SwiftData
 
 struct RootView: View {
     @Environment(AppStore.self) private var store
@@ -7,6 +8,9 @@ struct RootView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.requestReview) private var requestReview
+
+    @State private var lastForegroundedAt: Date?
+    @State private var lastScreenName: String?
 
     private var auth: AuthManager { .shared }
 
@@ -62,6 +66,10 @@ struct RootView: View {
                 }
             }
             .environment(\.palette, palette)
+            .onChange(of: route) { _, newRoute in
+                handleRouteChange(newRoute)
+            }
+            .onAppear { handleRouteChange(route) }
 
             if let dialog = store.completionDialog {
                 CompletionDialog(state: dialog) {
@@ -87,7 +95,14 @@ struct RootView: View {
             RoutineScheduler.materializeToday(context: modelContext, userID: auth.currentUserID)
             await SyncEngine.shared.runFullSync(context: modelContext)
         }
-        .onChange(of: scenePhase) { _, newPhase in
+        .onChange(of: scenePhase) { oldPhase, newPhase in
+            if newPhase == .active {
+                let hoursSince = lastForegroundedAt.map { Date().timeIntervalSince($0) / 3600 } ?? 0
+                Analytics.track(.appForegrounded(hoursSinceLastActive: hoursSince))
+                lastForegroundedAt = Date()
+            } else if newPhase == .background && oldPhase != .background {
+                Analytics.track(.appBackgrounded)
+            }
             guard newPhase == .active, auth.isAuthenticated else { return }
             RoutineScheduler.materializeToday(context: modelContext, userID: auth.currentUserID)
             ReviewPromptManager.recordAppForeground(store: store)
@@ -97,9 +112,48 @@ struct RootView: View {
         }
         .onChange(of: store.pendingReviewRequest) { _, isPending in
             guard isPending else { return }
+            Analytics.track(.reviewPromptShown)
             requestReview()
             ReviewPromptManager.markPromptShown()
             store.pendingReviewRequest = false
+        }
+        // Bridge notification taps (handled out-of-scene by `NotificationDelegate`)
+        // into the same `DeepLinkRouter` that powers `.onOpenURL`. Keeps tap
+        // routing identical to URL-scheme routing — one source of truth.
+        .onReceive(NotificationCenter.default.publisher(for: .flowStateDeepLink)) { note in
+            guard let url = note.object as? URL else { return }
+            let allTasks = (try? modelContext.fetch(FetchDescriptor<Task>())) ?? []
+            DeepLinkRouter.handle(url, store: store, context: modelContext, allTasks: allTasks)
+        }
+    }
+
+    /// Centralised route-transition side-effects: fire `$screen` events and
+    /// trigger the ATT prompt once the user reaches a post-onboarding route.
+    /// Keeping this in one place means future routes only have to be added to
+    /// the switch — they get analytics + ATT bookkeeping automatically.
+    private func handleRouteChange(_ newRoute: Route) {
+        let name: String
+        switch newRoute {
+        case .splash:     name = "Splash"
+        case .onboarding: name = "Onboarding"
+        case .paywall:    name = "Paywall"
+        case .timer:      name = "Timer"
+        case .checkin:    name = "CheckIn"
+        case .rest:       name = "Rest"
+        case .home:       name = "Home"
+        }
+        guard name != lastScreenName else { return }
+        lastScreenName = name
+        Analytics.screen(name)
+
+        // ATT triggers when the user transitions out of splash/onboarding
+        // into any "real" route. Onboarding is when they have the most
+        // context for why we're asking, so grant rate is highest here.
+        switch newRoute {
+        case .paywall, .timer, .checkin, .rest, .home:
+            _Concurrency.Task { @MainActor in await ATTManager.requestIfNeeded() }
+        default:
+            break
         }
     }
 }
