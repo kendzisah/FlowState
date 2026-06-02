@@ -219,22 +219,14 @@ struct CalendarTabView: View {
                isPresented: Binding(get: { importError != nil }, set: { if !$0 { importError = nil } }),
                actions: { Button("OK", role: .cancel) {} },
                message: { Text(importError ?? "") })
-        .sheet(item: $editingRoutine) { routine in
-            EditRoutineSheet(routine: routine, materializedToday: todayInstance(of: routine))
-                .environment(\.palette, palette)
-        }
-        .sheet(item: $addingInGroup) { group in
-            EditRoutineSheet(defaultGroup: group)
-                .environment(\.palette, palette)
-        }
-        .sheet(item: $addingGroupSlot) { slot in
-            EditRoutineGroupSheet(defaultSlot: slot)
-                .environment(\.palette, palette)
-        }
-        .sheet(item: $editingGroup) { group in
-            EditRoutineGroupSheet(group: group)
-                .environment(\.palette, palette)
-        }
+        .routineSheets(
+            editingRoutine: $editingRoutine,
+            addingInGroup: $addingInGroup,
+            addingGroupSlot: $addingGroupSlot,
+            editingGroup: $editingGroup,
+            palette: palette,
+            todayInstance: { todayInstance(of: $0) }
+        )
         .sheet(item: $editingTask) { task in
             AddTaskSheet(editing: task)
                 .environment(\.palette, palette)
@@ -633,7 +625,10 @@ struct CalendarTabView: View {
         _Concurrency.Task {
             await EventEnergyClassifier.classify(events: [event], in: modelContext)
             await MainActor.run {
-                classifyingEventIDs.remove(eventID)
+                // `_ =` so the closure's implicit return type is Void rather
+                // than `Set.Element?`, which would trigger an "unused result"
+                // warning at the await site.
+                _ = classifyingEventIDs.remove(eventID)
             }
         }
     }

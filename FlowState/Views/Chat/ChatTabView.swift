@@ -159,6 +159,14 @@ struct ChatTabView: View {
             .padding(.vertical, 10)
             .opacity(quota.isLocked ? 0.5 : 1)
             .allowsHitTesting(!quota.isLocked)
+            if shouldShowCharacterCount && !quota.isLocked {
+                HStack {
+                    Spacer()
+                    characterCountLabel
+                }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 6)
+            }
             if let err = speech.lastError, !quota.isLocked {
                 Text(err)
                     .font(.system(size: 11, weight: .medium))
@@ -284,6 +292,32 @@ struct ChatTabView: View {
 
     private var canSend: Bool {
         !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && draft.count <= OpenAIClient.maxUserPromptCharacters
+    }
+
+    /// True once the user has typed enough to warrant showing the counter.
+    /// The threshold (80% of the cap) keeps the UI quiet for normal use
+    /// and only nudges when overflow becomes a real risk.
+    private var shouldShowCharacterCount: Bool {
+        draft.count > Int(Double(OpenAIClient.maxUserPromptCharacters) * 0.8)
+    }
+
+    private var isOverCharacterLimit: Bool {
+        draft.count > OpenAIClient.maxUserPromptCharacters
+    }
+
+    @ViewBuilder
+    private var characterCountLabel: some View {
+        if shouldShowCharacterCount {
+            Text("\(draft.count) / \(OpenAIClient.maxUserPromptCharacters)")
+                .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                .foregroundStyle(isOverCharacterLimit ? palette.energyScattered : palette.textSecondary)
+                .accessibilityLabel(
+                    isOverCharacterLimit
+                        ? "Over the \(OpenAIClient.maxUserPromptCharacters) character limit"
+                        : "\(draft.count) of \(OpenAIClient.maxUserPromptCharacters) characters"
+                )
+        }
     }
 
     // MARK: - Actions
@@ -345,6 +379,15 @@ struct ChatTabView: View {
                     turns.removeAll { $0.id == thinkingTurnID }
                     turns.append(.error(id: UUID(),
                         message: "Daily AI limit reached. Try again \(quota.formattedResetTime())."))
+                }
+            } catch OpenAIClientError.inputTooLong(let limit, let given) {
+                // Client-side reject. No quota consumed. Friendly message
+                // tells the user how much to trim.
+                await MainActor.run {
+                    isThinking = false
+                    turns.removeAll { $0.id == thinkingTurnID }
+                    turns.append(.error(id: UUID(),
+                        message: "That's a lot to take in at once (\(given) characters). Try breaking it into \(limit) characters or fewer."))
                 }
             } catch {
                 AnalyticsErrorReporter.report(error, context: "chat.command")

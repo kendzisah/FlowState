@@ -34,7 +34,7 @@ final class PostHogProvider: AnalyticsProvider {
             return
         }
 
-        let config = PostHogConfig(apiKey: apiKey, host: host)
+        let config = PostHogConfig(projectToken: apiKey, host: host)
         config.captureApplicationLifecycleEvents = true
         config.captureScreenViews = true
         config.captureElementInteractions = true

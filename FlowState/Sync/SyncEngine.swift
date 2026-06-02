@@ -316,12 +316,20 @@ final class SyncEngine {
         }
     }
 
-    static let isoFormatter: ISO8601DateFormatter = {
+    // ISO8601DateFormatter is thread-safe per Apple docs (read-only after
+    // configuration). Marking these `nonisolated` so the SwiftData→JSON
+    // encoders inside Sendable closures can use them without violating
+    // strict-concurrency isolation.
+    // ISO8601DateFormatter is documented thread-safe for read-only use after
+    // configuration. Apple hasn't marked it Sendable so we use
+    // `nonisolated(unsafe)` to opt out of strict-concurrency checks for the
+    // shared instances — safe in practice for date formatting.
+    nonisolated(unsafe) static let isoFormatter: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
         f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return f
     }()
-    static let isoNoFractional: ISO8601DateFormatter = {
+    nonisolated(unsafe) static let isoNoFractional: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
         f.formatOptions = [.withInternetDateTime]
         return f

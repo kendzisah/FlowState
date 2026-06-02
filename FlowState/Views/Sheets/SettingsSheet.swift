@@ -19,67 +19,71 @@ struct SettingsSheet: View {
     var body: some View {
         @Bindable var bindable = store
 
-        VStack(alignment: .leading, spacing: 22) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Settings")
-                    .font(AppFont.title)
-                    .tracking(AppFont.titleTracking)
-                    .foregroundStyle(palette.textPrimary)
-                Text("Tune the parts of the app that get in your way.")
-                    .font(AppFont.body)
-                    .foregroundStyle(palette.textSecondary)
-            }
-            .padding(.top, 8)
-
-            VStack(alignment: .leading, spacing: 12) {
-                sectionLabel("Theme")
-                themePicker
-            }
-
-            VStack(alignment: .leading, spacing: 12) {
-                sectionLabel("Notifications")
-                Toggle(isOn: $bindable.notificationsEnabled) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Session-complete notifications")
-                            .font(AppFont.body)
-                            .foregroundStyle(palette.textPrimary)
-                        Text("A gentle ping when a countdown ends. No streaks, no shame.")
-                            .font(AppFont.caption)
-                            .foregroundStyle(palette.textSecondary)
-                    }
+        ScrollView {
+            VStack(alignment: .leading, spacing: 22) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Settings")
+                        .font(AppFont.title)
+                        .tracking(AppFont.titleTracking)
+                        .foregroundStyle(palette.textPrimary)
+                    Text("Tune the parts of the app that get in your way.")
+                        .font(AppFont.body)
+                        .foregroundStyle(palette.textSecondary)
                 }
-                .tint(palette.energySteady)
-                .padding(14)
-                .background(
-                    RoundedRectangle(cornerRadius: Geometry.buttonRadius, style: .continuous)
-                        .fill(palette.surfaceAlt)
-                )
+                .padding(.top, 8)
+
+                VStack(alignment: .leading, spacing: 12) {
+                    sectionLabel("Theme")
+                    themePicker
+                }
+
+                VStack(alignment: .leading, spacing: 12) {
+                    sectionLabel("Notifications")
+                    Toggle(isOn: $bindable.notificationsEnabled) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("All FlowState notifications")
+                                .font(AppFont.body)
+                                .foregroundStyle(palette.textPrimary)
+                            Text("Session-complete pings, routine reminders, and scheduled-task alerts. Turn off to silence everything from FlowState.")
+                                .font(AppFont.caption)
+                                .foregroundStyle(palette.textSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    .tint(palette.energySteady)
+                    .padding(14)
+                    .background(
+                        RoundedRectangle(cornerRadius: Geometry.buttonRadius, style: .continuous)
+                            .fill(palette.surfaceAlt)
+                    )
+                }
+
+                VStack(alignment: .leading, spacing: 12) {
+                    sectionLabel("Subscription")
+                    subscriptionRow
+                }
+
+                VStack(alignment: .leading, spacing: 12) {
+                    sectionLabel("Feedback")
+                    rateRow
+                }
+
+                VStack(alignment: .leading, spacing: 12) {
+                    sectionLabel("Account")
+                    accountRows
+                }
+
+                Text("FlowState — built for brains that don't fit the schedule.")
+                    .font(AppFont.caption)
+                    .foregroundStyle(palette.textDimmed)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.top, 8)
             }
-
-            VStack(alignment: .leading, spacing: 12) {
-                sectionLabel("Subscription")
-                subscriptionRow
-            }
-
-            VStack(alignment: .leading, spacing: 12) {
-                sectionLabel("Feedback")
-                rateRow
-            }
-
-            VStack(alignment: .leading, spacing: 12) {
-                sectionLabel("Account")
-                accountRows
-            }
-
-            Spacer(minLength: 0)
-
-            Text("FlowState — built for brains that don't fit the schedule.")
-                .font(AppFont.caption)
-                .foregroundStyle(palette.textDimmed)
-                .frame(maxWidth: .infinity, alignment: .center)
+            .padding(.horizontal, Geometry.horizontalPadding)
+            .padding(.bottom, 24)
         }
-        .padding(.horizontal, Geometry.horizontalPadding)
-        .padding(.bottom, 24)
+        .scrollIndicators(.hidden)
+        .scrollBounceBehavior(.basedOnSize)
         .onAppear {
             Analytics.track(.settingsOpened)
             Analytics.screen("Settings")

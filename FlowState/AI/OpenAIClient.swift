@@ -8,6 +8,10 @@ enum OpenAIClientError: Error {
     case decoding
     case network(Error)
     case quotaExceeded(resetsAt: Date)
+    /// Input exceeded `OpenAIClient.maxUserPromptCharacters`. Client-side
+    /// pre-flight check — prevents the Edge Function from spending tokens
+    /// on a request we'd reject server-side anyway.
+    case inputTooLong(limit: Int, given: Int)
 }
 
 /// Thin client for the FlowState AI proxy (Supabase Edge Function `ai-proxy`).
@@ -24,6 +28,20 @@ enum OpenAIClientError: Error {
 struct OpenAIClient {
     private let timeoutSeconds: TimeInterval = 30
     private let model = "gpt-4o-mini"
+
+    /// Hard cap on user-supplied text per request. Keeps OpenAI token cost
+    /// bounded and blocks abusive paste-walls before they hit the proxy.
+    /// Surfaced as a public constant so the chat input UI can show the same
+    /// limit (counter + over-limit warning).
+    static let maxUserPromptCharacters = 2000
+
+    /// Hard cap on the assistant's response. 500 tokens is generous for a
+    /// task list (~50–100 tasks) but tight enough that an attempt to coax
+    /// prose out of the model gets truncated mid-stream → the client's
+    /// strict JSON decoder rejects it → the user sees the "couldn't pull
+    /// tasks" message. The Edge Function must forward this to OpenAI's
+    /// `max_tokens` parameter.
+    private let maxResponseTokens = 500
 
     private var proxyEndpoint: URL? {
         guard let raw = Bundle.main.infoDictionary?["SUPABASE_URL"] as? String,
@@ -44,6 +62,15 @@ struct OpenAIClient {
     /// Generic JSON-mode chat request. Returns the raw assistant content
     /// string from OpenAI; caller is responsible for decoding it.
     func chatJSON(systemPrompt: String, userPrompt: String, temperature: Double = 0.4) async throws -> String {
+        // Client-side length check — fail fast before consuming quota.
+        let count = userPrompt.count
+        if count > Self.maxUserPromptCharacters {
+            throw OpenAIClientError.inputTooLong(
+                limit: Self.maxUserPromptCharacters,
+                given: count
+            )
+        }
+
         // Short-circuit if the device cache already knows we're locked out.
         // Saves a round trip + makes the lock instant after the first 429.
         if let resetsAt = AIQuotaState.shared.resetsAt, resetsAt > Date() {
@@ -65,6 +92,10 @@ struct OpenAIClient {
             "temperature": temperature,
             "model": model,
             "responseFormat": "json_object",
+            // Edge Function should forward to OpenAI's `max_tokens` so prose
+            // attempts get truncated mid-output (and the strict client
+            // decoder then rejects them).
+            "maxTokens": maxResponseTokens,
         ]
 
         var request = URLRequest(url: proxyEndpoint)
@@ -116,14 +147,28 @@ struct OpenAIClient {
     /// Onboarding's task-extraction request. Thin wrapper around `chatJSON`.
     func extractTasks(from userInput: String) async throws -> String {
         let systemPrompt = """
-        You are FlowState, a calm planning assistant for ADHD users. The user will paste \
-        a free-form list of things on their plate this week. Extract distinct, concrete \
-        tasks. Keep them short (3–8 words each). Suggest an energy tag for each: \
-        "scattered" (low focus, e.g. emails, errands), "steady" (medium focus, e.g. \
-        planning, light work), or "locked" (high focus, e.g. deep work, learning). \
-        Never use "foggy" — that's a rest state, not a task tag. Categorize each task: \
-        "Work", "Personal", "Errand", "Social", or "Home". Return ONLY a JSON object of \
-        the form: {"tasks": [{"title": "...", "category": "...", "suggestedEnergy": "..."}]}.
+        You are FlowState, a calm planning assistant for ADHD users. Your ONLY job is to \
+        extract concrete to-do items from the user's input. You are NOT a chatbot, search \
+        engine, advisor, writer, or coder.
+
+        Refusal rules — follow exactly:
+        • If the input is a question, a request for information, prose, code, a greeting, \
+        an opinion request, or anything that isn't a list of tasks the user wants to do, \
+        return exactly {"tasks": []}. Do not invent tasks. Do not answer.
+        • Never include answers, advice, opinions, summaries, jokes, weather, definitions, \
+        or any content the user did not explicitly write as a to-do item in task titles.
+        • Task titles must be things the USER will do — not things YOU will do, not \
+        descriptions, not commentary.
+
+        When the input IS a task list: extract distinct, concrete tasks. Keep titles \
+        short (3–8 words each). Suggest an energy tag for each: "scattered" (low focus, \
+        e.g. emails, errands), "steady" (medium focus, e.g. planning, light work), or \
+        "locked" (high focus, e.g. deep work, learning). Never use "foggy" — that's a \
+        rest state, not a task tag. Categorize each task: "Work", "Personal", "Errand", \
+        "Social", or "Home".
+
+        Return ONLY a JSON object: \
+        {"tasks": [{"title": "...", "category": "...", "suggestedEnergy": "..."}]}
         """
         return try await chatJSON(systemPrompt: systemPrompt, userPrompt: userInput)
     }

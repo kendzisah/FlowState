@@ -137,22 +137,14 @@ struct TaskListView: View {
             AddTaskSheet(editing: task)
                 .environment(\.palette, palette)
         }
-        .sheet(item: $editingRoutine) { routine in
-            EditRoutineSheet(routine: routine, materializedToday: todayInstance(of: routine))
-                .environment(\.palette, palette)
-        }
-        .sheet(item: $addingInGroup) { group in
-            EditRoutineSheet(defaultGroup: group)
-                .environment(\.palette, palette)
-        }
-        .sheet(item: $addingGroupSlot) { slot in
-            EditRoutineGroupSheet(defaultSlot: slot)
-                .environment(\.palette, palette)
-        }
-        .sheet(item: $editingGroup) { group in
-            EditRoutineGroupSheet(group: group)
-                .environment(\.palette, palette)
-        }
+        .routineSheets(
+            editingRoutine: $editingRoutine,
+            addingInGroup: $addingInGroup,
+            addingGroupSlot: $addingGroupSlot,
+            editingGroup: $editingGroup,
+            palette: palette,
+            todayInstance: { todayInstance(of: $0) }
+        )
         .alert(
             "Delete routine?",
             isPresented: Binding(

@@ -1,6 +1,6 @@
 import Foundation
 import SwiftData
-import UserNotifications
+@preconcurrency import UserNotifications
 
 /// Owns every `UNUserNotificationCenter` interaction.
 ///
@@ -18,9 +18,9 @@ import UserNotifications
 enum NotificationManager {
     // MARK: - Identifiers
 
-    private static let timerCompleteIdentifier = "com.flocktechnologies.FlowState.timerComplete"
-    private static let routinePrefix = "routine."
-    private static let taskPrefix = "task."
+    nonisolated private static let timerCompleteIdentifier = "com.flocktechnologies.FlowState.timerComplete"
+    nonisolated private static let routinePrefix = "routine."
+    nonisolated private static let taskPrefix = "task."
 
     /// iOS limits 64 pending notifications app-wide. We split the budget:
     ///   • 1 timer-complete
@@ -115,7 +115,9 @@ enum NotificationManager {
         let center = UNUserNotificationCenter.current()
         for request in pending {
             center.add(request) { error in
-                if let error {
+                guard let error else { return }
+                // Hop back onto MainActor to call the reporter.
+                _Concurrency.Task { @MainActor in
                     AnalyticsErrorReporter.report(error, context: "notifications.routine.add")
                 }
             }
@@ -124,10 +126,13 @@ enum NotificationManager {
 
     static func cancelAllRoutineReminders() {
         let center = UNUserNotificationCenter.current()
+        // The completion fires on a private queue — re-fetch the singleton
+        // inside instead of capturing `center` (UNUserNotificationCenter
+        // isn't Sendable; strict concurrency flags the capture).
         center.getPendingNotificationRequests { requests in
             let ids = requests.map(\.identifier).filter { $0.hasPrefix(routinePrefix) }
             guard !ids.isEmpty else { return }
-            center.removePendingNotificationRequests(withIdentifiers: ids)
+            UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ids)
         }
     }
 
@@ -177,7 +182,8 @@ enum NotificationManager {
         let center = UNUserNotificationCenter.current()
         for request in pending {
             center.add(request) { error in
-                if let error {
+                guard let error else { return }
+                _Concurrency.Task { @MainActor in
                     AnalyticsErrorReporter.report(error, context: "notifications.task.add")
                 }
             }
@@ -189,7 +195,7 @@ enum NotificationManager {
         center.getPendingNotificationRequests { requests in
             let ids = requests.map(\.identifier).filter { $0.hasPrefix(taskPrefix) }
             guard !ids.isEmpty else { return }
-            center.removePendingNotificationRequests(withIdentifiers: ids)
+            UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ids)
         }
     }
 

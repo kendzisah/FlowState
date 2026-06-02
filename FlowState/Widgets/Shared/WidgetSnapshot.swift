@@ -8,7 +8,7 @@ import Foundation
 /// state mutation. Widgets read it via `WidgetSnapshotStore` and render off the
 /// cached value. New fields go at the bottom and default to a sensible value
 /// when missing so widgets bound to older snapshots don't crash.
-struct WidgetSnapshot: Codable, Equatable {
+nonisolated struct WidgetSnapshot: Codable, Equatable, Sendable {
     var writtenAt: Date
     var energy: SnapshotEnergy?           // nil when no check-in today
     var activeSession: SnapshotActiveSession?
@@ -26,13 +26,13 @@ struct WidgetSnapshot: Codable, Equatable {
     )
 }
 
-struct SnapshotEnergy: Codable, Equatable {
+nonisolated struct SnapshotEnergy: Codable, Equatable, Sendable {
     var level: String     // EnergyLevel.rawValue — foggy/scattered/steady/locked
     var hex: String       // 6-char hex (no #), matches EnergyLevel.hexString
     var setAt: Date
 }
 
-struct SnapshotActiveSession: Codable, Equatable {
+nonisolated struct SnapshotActiveSession: Codable, Equatable, Sendable {
     var taskID: String
     var title: String
     var energyHex: String
@@ -41,19 +41,19 @@ struct SnapshotActiveSession: Codable, Equatable {
     var endsAt: Date?     // present only for countdown; nil = open-ended count-up
 }
 
-struct SnapshotTaskRow: Codable, Equatable, Identifiable {
+nonisolated struct SnapshotTaskRow: Codable, Equatable, Identifiable, Sendable {
     var id: String        // Task.id.uuidString
     var title: String
     var energyTag: String // EnergyLevel.rawValue
     var durationEstimateSeconds: Int?
 }
 
-struct SnapshotParked: Codable, Equatable {
+nonisolated struct SnapshotParked: Codable, Equatable, Sendable {
     var count: Int
     var mostRecent: SnapshotParkedRow?
 }
 
-struct SnapshotParkedRow: Codable, Equatable {
+nonisolated struct SnapshotParkedRow: Codable, Equatable, Sendable {
     var id: String
     var title: String
     var parkedAt: Date
