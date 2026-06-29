@@ -29,7 +29,8 @@ extension AppStore {
         switch timerMode {
         case .countdown:
             timerSecondsRemaining = max(0, timerSecondsRemaining - delta)
-            if timerSecondsRemaining == 0, let task = activeTask {
+            // A routine run never auto-completes on the clock — hold at 0:00.
+            if timerSecondsRemaining == 0, activeRoutineRun == nil, let task = activeTask {
                 completeTask(task, context: nil)
                 backgroundedAt = nil
                 return
@@ -46,7 +47,7 @@ extension AppStore {
             secondsElapsed: timerElapsedSeconds
         )
 
-        if notificationsEnabled, timerMode == .countdown {
+        if notificationsEnabled, timerMode == .countdown, activeRoutineRun == nil {
             NotificationManager.scheduleCompletion(after: timerSecondsRemaining)
         }
     }

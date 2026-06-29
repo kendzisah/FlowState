@@ -72,16 +72,14 @@ struct FlowStateApp: App {
                     WidgetSnapshotWriter.refresh(store: store, context: modelContainer.mainContext)
                     // Rebuild notification slots. Idempotent — also runs
                     // every foreground in case iOS pruned anything.
-                    NotificationManager.refreshAllRoutineReminders(context: modelContainer.mainContext)
-                    NotificationManager.refreshAllTaskReminders(context: modelContainer.mainContext)
+                    NotificationManager.refreshAll(context: modelContainer.mainContext)
                 }
                 .onChange(of: scenePhase) { _, newPhase in
                     store.handleScenePhase(newPhase)
                     if newPhase == .active {
                         drainPendingWidgetActions()
                         WidgetSnapshotWriter.refresh(store: store, context: modelContainer.mainContext)
-                        NotificationManager.refreshAllRoutineReminders(context: modelContainer.mainContext)
-                        NotificationManager.refreshAllTaskReminders(context: modelContainer.mainContext)
+                        NotificationManager.refreshAll(context: modelContainer.mainContext)
                     }
                 }
                 .onOpenURL { url in

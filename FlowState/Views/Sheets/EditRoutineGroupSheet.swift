@@ -22,10 +22,14 @@ struct EditRoutineGroupSheet: View {
     @State private var reminderTime: Date = Date()
     @State private var recurrence: Recurrence = .daily
     @State private var energy: EnergyLevel? = nil
+    @State private var durationMinutes: Int = 30
     @State private var didSeed: Bool = false
     @State private var showDeleteConfirm: Bool = false
 
     private var isEditing: Bool { group != nil }
+
+    /// Run-length presets (minutes) offered in the duration menu.
+    private static let durationPresets: [Int] = [5, 10, 15, 20, 30, 45, 60, 90]
 
     /// Emojis we auto-seeded as defaults. Only overwrite the emoji field when
     /// the user changes the time if the current emoji is still one of these —
@@ -79,6 +83,7 @@ struct EditRoutineGroupSheet: View {
             }
 
             recurrenceRow
+            durationRow
             energyRow
 
             Spacer(minLength: 0)
@@ -197,6 +202,44 @@ struct EditRoutineGroupSheet: View {
         }
     }
 
+    private var durationRow: some View {
+        Menu {
+            ForEach(Self.durationPresets, id: \.self) { minutes in
+                Button {
+                    durationMinutes = minutes
+                } label: {
+                    if minutes == durationMinutes {
+                        Label("\(minutes) min", systemImage: "checkmark")
+                    } else {
+                        Text("\(minutes) min")
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "timer")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(palette.textSecondary)
+                    .frame(width: 22)
+                Text("Time to complete")
+                    .font(AppFont.body)
+                    .foregroundStyle(palette.textPrimary)
+                Spacer()
+                Text("\(durationMinutes) min")
+                    .font(AppFont.body)
+                    .foregroundStyle(palette.textSecondary)
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(palette.textDimmed)
+            }
+            .padding(14)
+            .background(
+                RoundedRectangle(cornerRadius: Geometry.buttonRadius, style: .continuous)
+                    .fill(palette.surfaceAlt)
+            )
+        }
+    }
+
     private var energyRow: some View {
         Menu {
             Button {
@@ -286,6 +329,7 @@ struct EditRoutineGroupSheet: View {
             slot = group.slot
             recurrence = group.recurrence
             energy = group.energy
+            durationMinutes = max(group.runDurationSeconds / 60, 1)
             // Rehydrate the time picker from stored hour/minute if present;
             // otherwise fall back to the slot's legacy default hour.
             let hour = group.reminderHour ?? defaultHourForLegacy(slot: group.slot)
@@ -326,6 +370,8 @@ struct EditRoutineGroupSheet: View {
         let pickedHour = calendar.component(.hour, from: reminderTime)
         let pickedMinute = calendar.component(.minute, from: reminderTime)
 
+        let durationSeconds = max(durationMinutes, 1) * 60
+
         if let group {
             group.title = trimmed
             group.emoji = normalizedEmoji
@@ -334,6 +380,7 @@ struct EditRoutineGroupSheet: View {
             group.energy = energy
             group.reminderHour = pickedHour
             group.reminderMinute = pickedMinute
+            group.totalDurationSeconds = durationSeconds
         } else {
             let userID = AuthManager.shared.currentUserID
             let g = RoutineGroup(
@@ -344,7 +391,8 @@ struct EditRoutineGroupSheet: View {
                 energy: energy,
                 userID: userID,
                 reminderHour: pickedHour,
-                reminderMinute: pickedMinute
+                reminderMinute: pickedMinute,
+                totalDurationSeconds: durationSeconds
             )
             context.insert(g)
             // No materialize call here — an empty group has no items to

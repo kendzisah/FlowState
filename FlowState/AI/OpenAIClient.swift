@@ -4,6 +4,7 @@ import RevenueCat
 enum OpenAIClientError: Error {
     case missingProxyConfig         // SUPABASE_URL / SUPABASE_PUBLISHABLE_KEY not wired
     case missingUserIdentity        // RevenueCat appUserID unavailable
+    case notAuthenticated           // No Supabase session JWT to send to the proxy
     case http(Int, String)
     case decoding
     case network(Error)
@@ -86,6 +87,19 @@ struct OpenAIClient {
             throw OpenAIClientError.missingUserIdentity
         }
 
+        // The Edge Function is published with `verify_jwt: true`, so the
+        // Supabase gateway rejects (401) any request whose Authorization
+        // header isn't a real JWT — the new-format `sb_publishable_*` key
+        // does NOT validate as one. Use the user's session access token
+        // (refreshed if needed), and put the publishable key in `apikey`
+        // — same dual-header shape SyncEngine uses for PostgREST calls.
+        let accessToken: String
+        do {
+            accessToken = try await AuthManager.shared.accessTokenForRequest()
+        } catch {
+            throw OpenAIClientError.notAuthenticated
+        }
+
         let body: [String: Any] = [
             "systemPrompt": systemPrompt,
             "userPrompt": userPrompt,
@@ -101,7 +115,8 @@ struct OpenAIClient {
         var request = URLRequest(url: proxyEndpoint)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(publishableKey)", forHTTPHeaderField: "Authorization")
+        request.setValue(publishableKey, forHTTPHeaderField: "apikey")
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         request.setValue(userID, forHTTPHeaderField: "X-User-ID")
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         request.timeoutInterval = timeoutSeconds
@@ -148,8 +163,8 @@ struct OpenAIClient {
     func extractTasks(from userInput: String) async throws -> String {
         let systemPrompt = """
         You are FlowState, a calm planning assistant for ADHD users. Your ONLY job is to \
-        extract concrete to-do items from the user's input. You are NOT a chatbot, search \
-        engine, advisor, writer, or coder.
+        turn the user's messy input into a clean list of action-oriented tasks. You are \
+        NOT a chatbot, search engine, advisor, writer, or coder.
 
         Refusal rules — follow exactly:
         • If the input is a question, a request for information, prose, code, a greeting, \
@@ -160,12 +175,39 @@ struct OpenAIClient {
         • Task titles must be things the USER will do — not things YOU will do, not \
         descriptions, not commentary.
 
-        When the input IS a task list: extract distinct, concrete tasks. Keep titles \
-        short (3–8 words each). Suggest an energy tag for each: "scattered" (low focus, \
-        e.g. emails, errands), "steady" (medium focus, e.g. planning, light work), or \
-        "locked" (high focus, e.g. deep work, learning). Never use "foggy" — that's a \
-        rest state, not a task tag. Categorize each task: "Work", "Personal", "Errand", \
-        "Social", or "Home".
+        When the input IS a task list: REWRITE each item into a short, action-oriented \
+        task title. DO NOT copy the user's sentence verbatim. Transform it.
+
+        Title rules:
+        • Start each title with an imperative verb: Buy, Send, Call, Write, Review, Book, \
+        Pick up, Schedule, Pay, Submit, Clean, Reply to, Plan, Fix, Finish, Read, etc.
+        • Drop filler words: "I need to", "I have to", "remember to", "I should", "gotta", \
+        "I want to", "make sure to". These are noise — the title is the action itself.
+        • Drop time/date qualifiers like "tonight", "tomorrow", "this morning", "later", \
+        "at 3pm" — the title is the action, not when it happens.
+        • Keep titles 3–8 words. Concrete enough to act on, short enough to scan.
+        • Split compound items into separate tasks ("do laundry and dishes" → two tasks). \
+        Keep enumerations as one task when they share an action ("buy milk, bread, eggs" \
+        → one "Buy groceries" task).
+        • Use sentence case (first word capitalized, rest lowercase unless proper noun).
+
+        Examples:
+        Input: "I need to get milk and bread from the store tonight"
+        Output: {"tasks": [{"title": "Buy milk and bread", ...}]}
+
+        Input: "Gotta send John that email about the Q1 review and also book a haircut"
+        Output: {"tasks": [{"title": "Email John about Q1 review", ...}, {"title": "Book haircut appointment", ...}]}
+
+        Input: "remember to pick up the kids at 3pm and pay the electric bill"
+        Output: {"tasks": [{"title": "Pick up kids", ...}, {"title": "Pay electric bill", ...}]}
+
+        Input: "laundry and dishes and vacuum the living room"
+        Output: {"tasks": [{"title": "Do the laundry", ...}, {"title": "Wash the dishes", ...}, {"title": "Vacuum living room", ...}]}
+
+        For each task, suggest an energy tag: "scattered" (low focus, e.g. emails, errands), \
+        "steady" (medium focus, e.g. planning, light work), or "locked" (high focus, e.g. \
+        deep work, learning). Never use "foggy" — that's a rest state, not a task tag. \
+        Categorize each task: "Work", "Personal", "Errand", "Social", or "Home".
 
         Return ONLY a JSON object: \
         {"tasks": [{"title": "...", "category": "...", "suggestedEnergy": "..."}]}

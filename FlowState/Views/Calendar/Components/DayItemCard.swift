@@ -2,13 +2,12 @@ import SwiftUI
 
 struct DayItemCard: View {
     let item: DayItem
-    let currentSlot: DayTimeSlot
     let isClassifying: Bool
     let onPickEnergy: (EnergyLevel) -> Void
     let onAutoClassify: () -> Void
-    let onMoveToSlot: (DayTimeSlot) -> Void
-    /// Task-only edit + delete. Events are read-only references to the system
-    /// calendar so these callbacks are simply ignored when the item is an event.
+    /// Task-only edit + reschedule + delete. Events are read-only references to
+    /// the system calendar, so these are ignored when the item is an event.
+    var onReschedule: ((Task) -> Void)? = nil
     var onEditTask: ((Task) -> Void)? = nil
     var onDeleteTask: ((Task) -> Void)? = nil
 
@@ -28,7 +27,30 @@ struct DayItemCard: View {
         }
     }
 
+    @ViewBuilder
     var body: some View {
+        if case .task(let task, _) = item {
+            cardContent.contextMenu { taskMenu(task) }
+        } else {
+            cardContent
+        }
+    }
+
+    @ViewBuilder
+    private func taskMenu(_ task: Task) -> some View {
+        if let onEditTask {
+            Button { onEditTask(task) } label: { Label("Edit task…", systemImage: "pencil") }
+        }
+        if let onReschedule {
+            Button { onReschedule(task) } label: { Label("Reschedule…", systemImage: "clock") }
+        }
+        if let onDeleteTask {
+            Divider()
+            Button(role: .destructive) { onDeleteTask(task) } label: { Label("Delete task", systemImage: "trash") }
+        }
+    }
+
+    private var cardContent: some View {
         HStack(spacing: 12) {
             VStack(alignment: .trailing, spacing: 2) {
                 Text(timeLabel)
@@ -74,35 +96,5 @@ struct DayItemCard: View {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .stroke(palette.border, lineWidth: 1)
         )
-        .contextMenu {
-            if case .task(let task, _) = item {
-                if let onEditTask {
-                    Button {
-                        onEditTask(task)
-                    } label: {
-                        Label("Edit task…", systemImage: "pencil")
-                    }
-                }
-            }
-            Section("Move to") {
-                ForEach(DayTimeSlot.allCases) { slot in
-                    if slot != currentSlot {
-                        Button {
-                            onMoveToSlot(slot)
-                        } label: {
-                            Label(slot.title, systemImage: slot.iconName)
-                        }
-                    }
-                }
-            }
-            if case .task(let task, _) = item, let onDeleteTask {
-                Divider()
-                Button(role: .destructive) {
-                    onDeleteTask(task)
-                } label: {
-                    Label("Delete task", systemImage: "trash")
-                }
-            }
-        }
     }
 }

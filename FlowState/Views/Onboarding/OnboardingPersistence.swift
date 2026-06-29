@@ -26,7 +26,10 @@ enum OnboardingPersistence {
                 title: RoutineScheduler.defaultGroupTitle(for: slot),
                 slot: slot,
                 recurrence: .daily,
-                userID: userID
+                userID: userID,
+                // Seed a 30-minute run length; the user can change it later in
+                // the group editor on the Calendar tab.
+                totalDurationSeconds: 30 * 60
             )
             modelContext.insert(g)
             return g

@@ -50,6 +50,7 @@ struct ScheduleTaskSheet: View {
                 if task.scheduledDate != nil {
                     Button(role: .destructive) {
                         task.scheduledDate = nil
+                        task.isAnchored = false
                         modelContext.saveAndSync()
                         onClose()
                     } label: {
@@ -67,6 +68,7 @@ struct ScheduleTaskSheet: View {
 
                 OnbPrimaryButton(title: "Save") {
                     task.scheduledDate = pickerDate
+                    task.isAnchored = true
                     modelContext.saveAndSync()
                     onClose()
                 }

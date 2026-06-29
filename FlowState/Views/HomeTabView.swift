@@ -8,12 +8,10 @@ struct HomeTabView: View {
     @Environment(AppStore.self) private var store
     @Environment(\.palette) private var palette
 
-    @State private var selection: HomeTab = .tasks
-
     var body: some View {
         @Bindable var bindable = store
 
-        TabView(selection: $selection) {
+        TabView(selection: $bindable.homeTab) {
             TaskListView()
                 .tabItem {
                     Label("Tasks", systemImage: "checklist")
@@ -22,7 +20,7 @@ struct HomeTabView: View {
 
             CalendarTabView()
                 .tabItem {
-                    Label("Calendar", systemImage: calendarIconName)
+                    Label("Schedule", systemImage: calendarIconName)
                 }
                 .tag(HomeTab.calendar)
 

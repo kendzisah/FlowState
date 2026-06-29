@@ -28,15 +28,40 @@ struct RoutineSlotSection: View {
     /// task hasn't been materialized yet. Edit/Delete via the row's
     /// contextMenu still work because they target the source `RoutineTag`.
     var isPreview: Bool = false
+    /// Calendar "Start" → run the whole group through the timer. Nil hides the
+    /// run control (e.g. on the Home tab or preview days).
+    var onStartRun: ((RoutineGroup) -> Void)? = nil
+    /// Calendar "Resume" → continue a paused run.
+    var onResumeRun: ((RoutineGroup) -> Void)? = nil
+    /// A paused run exists for this group → show Resume instead of Start.
+    var isPausedRun: Bool = false
+    /// Another session (a single-task timer or another run) is active → the
+    /// Start button is shown disabled so the user knows it's momentarily unavailable.
+    var runDisabled: Bool = false
 
     @Environment(\.palette) private var palette
     @State private var isExpanded: Bool = true
 
-    /// Completed routines disappear from the body — caller still passes the
-    /// full list so the header's `completed/total` count is accurate.
+    /// Incomplete routines only — used to gate the run control (nothing to run
+    /// once everything's done). Completed routines stay rendered (struck out)
+    /// so a mis-tap can be undone by tapping again.
     private var activeTasks: [Task] { tasks.filter { !$0.isCompleted } }
     private var completed: Int { tasks.filter(\.isCompleted).count }
     private var total: Int { tasks.count }
+
+    /// Render order: incomplete first (in their existing order), completed
+    /// sink to the bottom — but each stays in place when toggled so undo is
+    /// predictable. Preview days have no completion state, so order is moot.
+    private var orderedTasks: [Task] {
+        tasks.enumerated()
+            .sorted { lhs, rhs in
+                if lhs.element.isCompleted != rhs.element.isCompleted {
+                    return !lhs.element.isCompleted
+                }
+                return lhs.offset < rhs.offset
+            }
+            .map(\.element)
+    }
 
     private var slotIcon: String {
         switch group.slot {
@@ -62,7 +87,7 @@ struct RoutineSlotSection: View {
             header
             if isExpanded {
                 VStack(spacing: 0) {
-                    ForEach(activeTasks, id: \.id) { task in
+                    ForEach(orderedTasks, id: \.id) { task in
                         Divider().background(palette.border.opacity(0.4))
                         RoutineRow(
                             task: task,
@@ -71,19 +96,21 @@ struct RoutineSlotSection: View {
                             onEdit: { onEdit(task) },
                             onDelete: { onDelete(task) }
                         )
-                        .transition(.asymmetric(
-                            insertion: .opacity,
-                            removal: .scale(scale: 0.92).combined(with: .opacity)
-                        ))
+                        .transition(.opacity)
                     }
                 }
-                .animation(.easeOut(duration: 0.28), value: activeTasks.map(\.id))
+                .animation(.easeOut(duration: 0.28), value: orderedTasks.map { "\($0.id)-\($0.isCompleted)" })
+
+                runControl
             }
         }
         .background(
             RoundedRectangle(cornerRadius: Geometry.cardRadius, style: .continuous)
                 .fill(palette.surface)
         )
+        // Clip so the full-width run button's fill follows the card's rounded
+        // bottom corners instead of poking out as square edges.
+        .clipShape(RoundedRectangle(cornerRadius: Geometry.cardRadius, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: Geometry.cardRadius, style: .continuous)
                 .stroke(palette.border, lineWidth: 1)
@@ -147,6 +174,45 @@ struct RoutineSlotSection: View {
                 }
             }
         }
+    }
+
+    /// "Start routine · 30 min" / "Resume routine" footer. Only shown for the
+    /// live (non-preview) day, when there's at least one task left to run and a
+    /// run handler is wired.
+    @ViewBuilder
+    private var runControl: some View {
+        if !isPreview, onStartRun != nil, !activeTasks.isEmpty {
+            Divider().background(palette.border.opacity(0.4))
+            Button {
+                if isPausedRun { onResumeRun?(group) } else { onStartRun?(group) }
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: isPausedRun ? "play.circle.fill" : "play.fill")
+                        .font(.system(size: 14, weight: .bold))
+                    Text(runLabel)
+                        .font(.system(size: 15, weight: .semibold))
+                    Spacer()
+                }
+                .foregroundStyle(runDisabled ? palette.textDimmed : palette.onEnergy)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 13)
+                .frame(maxWidth: .infinity)
+                .background(
+                    (isPausedRun ? palette.parkedAccent : palette.energySteady)
+                        .opacity(runDisabled ? 0.4 : 1.0)
+                )
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.pressable)
+            .disabled(runDisabled)
+            .accessibilityLabel(isPausedRun ? "Resume \(group.title)" : "Start \(group.title)")
+        }
+    }
+
+    private var runLabel: String {
+        if isPausedRun { return "Resume routine" }
+        let minutes = max(group.runDurationSeconds / 60, 1)
+        return "Start routine · \(minutes) min"
     }
 
     private func energyChip(_ energy: EnergyLevel) -> some View {

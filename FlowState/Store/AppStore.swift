@@ -20,6 +20,18 @@ final class AppStore {
     var timerRunning: Bool = false
     var backgroundedAt: Date? = nil
 
+    // Routine group run. `activeRoutineRun` is non-nil while a group is being
+    // run end-to-end through the timer; `pausedRoutineRuns` (keyed by group id)
+    // holds runs the user paused, which surface a Resume button on the Calendar.
+    var activeRoutineRun: RoutineRunState? = nil
+    var pausedRoutineRuns: [UUID: RoutineRunState] = [:]
+
+    /// Selected Home tab, hoisted out of `HomeTabView` so it survives the
+    /// route switch to the full-screen timer and back — lets a finished/paused
+    /// routine run land the user back on the Calendar where its Resume button
+    /// (and its tasks) live.
+    var homeTab: HomeTab = .tasks
+
     // UI
     var showAddTask: Bool = false
     var showEnergySwitcher: Bool = false
@@ -75,6 +87,9 @@ final class AppStore {
             if !notificationsEnabled {
                 NotificationManager.cancelAllRoutineReminders()
                 NotificationManager.cancelAllTaskReminders()
+                NotificationManager.cancelAllEnergyCheckInReminders()
+                NotificationManager.cancelAllWindowReminders()
+                NotificationManager.cancelAllEventReminders()
                 NotificationManager.cancelCompletion()
             }
             // Re-enabling triggers refresh from `FlowStateApp` on the next

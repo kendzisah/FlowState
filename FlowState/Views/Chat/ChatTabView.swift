@@ -57,9 +57,9 @@ struct ChatTabView: View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Brain dump")
-                    .font(.system(size: 22, weight: .bold, design: .serif))
+                    .font(.system(size: 22, weight: .bold))
                     .foregroundStyle(palette.textPrimary)
-                Text("Tell me what's on your mind. I'll sort it.")
+                Text("Say it all. I'll sort it by energy.")
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(palette.textSecondary)
             }
@@ -129,7 +129,7 @@ struct ChatTabView: View {
                 "Do laundry, water plants, draft the doc"
             ], id: \.self) { example in
                 Text("\u{201C}\(example)\u{201D}")
-                    .font(.system(size: 14, weight: .regular, design: .serif))
+                    .font(.system(size: 14, weight: .regular))
                     .italic()
                     .foregroundStyle(palette.textSecondary)
                     .padding(.horizontal, 14)

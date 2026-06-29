@@ -346,12 +346,14 @@ struct AddTaskSheet: View {
             task.title = trimmed
             task.energyTag = assignable
             task.scheduledDate = scheduledDate
+            task.isAnchored = scheduledDate != nil
             task.recurrence = recurrence
             task.markDirty()
             Analytics.track(.taskEdited(taskID: task.id.uuidString, changedFields: changed))
         } else {
             let task = Task(title: trimmed, energyTag: assignable)
             task.scheduledDate = scheduledDate
+            task.isAnchored = scheduledDate != nil
             task.recurrence = recurrence
             context.insert(task)
             Analytics.track(.taskCreated(

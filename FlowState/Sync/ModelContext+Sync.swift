@@ -65,9 +65,12 @@ extension ModelContext {
             WidgetSnapshotWriter.refresh(store: appStore, context: self)
         }
 
-        // Rebuild scheduled-task notifications. Cheap drop-and-rebuild over
-        // the (typically tiny) set of scheduled, non-completed, non-routine
-        // tasks. Routine reminders refresh from their own sheet save paths.
+        // Rebuild notifications that depend on tasks/events: per-task reminders,
+        // the morning/afternoon/evening window digests, and upcoming-event
+        // reminders. Cheap drop-and-rebuild. Routine + energy reminders refresh
+        // from their own paths (sheet saves / foreground).
         NotificationManager.refreshAllTaskReminders(context: self)
+        NotificationManager.refreshWindowReminders(context: self)
+        NotificationManager.refreshAllEventReminders(context: self)
     }
 }

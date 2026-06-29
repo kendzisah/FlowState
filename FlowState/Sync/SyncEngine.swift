@@ -374,6 +374,7 @@ private extension Task {
         if let completedAt { dict["completed_at"] = SyncEngine.isoFormatter.string(from: completedAt) }
         if let scheduledDate { dict["scheduled_date"] = SyncEngine.isoFormatter.string(from: scheduledDate) }
         if let recurrenceRaw { dict["recurrence"] = recurrenceRaw }
+        dict["is_anchored"] = isAnchored
         return dict
     }
 }
@@ -422,6 +423,7 @@ private struct TaskRow: Decodable {
     let is_completed: Bool
     let scheduled_date: Date?
     let recurrence: String?
+    let is_anchored: Bool?
     let deleted_at: Date?
 
     func applyTo(_ t: Task) {
@@ -431,6 +433,7 @@ private struct TaskRow: Decodable {
         t.completedAt = completed_at
         t.scheduledDate = scheduled_date
         t.recurrenceRaw = recurrence
+        t.isAnchored = is_anchored ?? false
         t.updatedAt = updated_at
     }
 }

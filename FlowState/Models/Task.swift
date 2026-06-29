@@ -11,6 +11,11 @@ final class Task: Identifiable {
     var isCompleted: Bool
     /// When set, this task surfaces in the Calendar tab on the matching day.
     var scheduledDate: Date?
+    /// True when `scheduledDate` carries a clock time the user committed to (an
+    /// appointment-like slot) vs. a "sometime today" placement. Drives the home
+    /// FixedPointsRail (anchored) vs. energy lanes (flexible) split. Existing rows
+    /// default to `false` (flexible), so the migration is a no-op.
+    var isAnchored: Bool = false
     /// User-chosen recurrence intent. Persisted only; instance materialization is a follow-up.
     var recurrenceRaw: String?
 

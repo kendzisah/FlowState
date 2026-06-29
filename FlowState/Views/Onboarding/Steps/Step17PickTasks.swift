@@ -56,11 +56,22 @@ struct Step17PickTasks: View {
                 }
             }
 
-            OnbPrimaryButton(
-                title: "Add tasks (\(draft.selectedTaskIDs.count))",
-                enabled: !draft.selectedTaskIDs.isEmpty,
-                action: onContinue
-            )
+            // When nothing could be extracted there's nothing to pick, so the
+            // CTA becomes a plain "Next" that lets the user move on rather than
+            // a disabled "Add tasks (0)" that would trap them.
+            if draft.generatedTasks.isEmpty {
+                OnbPrimaryButton(
+                    title: "Next",
+                    enabled: true,
+                    action: onContinue
+                )
+            } else {
+                OnbPrimaryButton(
+                    title: "Add tasks (\(draft.selectedTaskIDs.count))",
+                    enabled: !draft.selectedTaskIDs.isEmpty,
+                    action: onContinue
+                )
+            }
         }
         .padding(.horizontal, Geometry.horizontalPadding)
         .padding(.bottom, 24)

@@ -123,6 +123,7 @@ enum AnalyticsEvent {
     case notificationTap(type: String)
     case routineRemindersCapped(droppedCount: Int)
     case taskRemindersCapped(droppedCount: Int)
+    case eventRemindersCapped(droppedCount: Int)
     case liveActivityStarted(taskID: String, durationSeconds: Int)
     case liveActivityEnded(taskID: String, reason: String)
     case liveActivityFailed(reason: String)
@@ -234,6 +235,7 @@ enum AnalyticsEvent {
         case .notificationTap: return "notification_tap"
         case .routineRemindersCapped: return "routine_reminders_capped"
         case .taskRemindersCapped: return "task_reminders_capped"
+        case .eventRemindersCapped: return "event_reminders_capped"
         case .liveActivityStarted: return "live_activity_started"
         case .liveActivityEnded: return "live_activity_ended"
         case .liveActivityFailed: return "live_activity_failed"
@@ -364,6 +366,7 @@ enum AnalyticsEvent {
         case let .notificationTap(t): return ["type": t]
         case let .routineRemindersCapped(c): return ["dropped_count": c]
         case let .taskRemindersCapped(c): return ["dropped_count": c]
+        case let .eventRemindersCapped(c): return ["dropped_count": c]
         case let .liveActivityStarted(id, d): return ["task_id": id, "duration_seconds": d]
         case let .liveActivityEnded(id, r): return ["task_id": id, "reason": r]
         case let .liveActivityFailed(r): return ["reason": r]

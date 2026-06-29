@@ -25,10 +25,10 @@ enum DayTimeSlot: String, CaseIterable, Identifiable {
 
     var emptyStateCopy: String {
         switch self {
-        case .anytime:   return "Anytime today works"
-        case .morning:   return "What's on your morning list?"
-        case .afternoon: return "What's happening today?"
-        case .evening:   return "End the day your way"
+        case .anytime:   return "No fixed time — slot it when the energy's there."
+        case .morning:   return "Morning's open. What's the first small charge?"
+        case .afternoon: return "Afternoon's clear. Add what fits your focus."
+        case .evening:   return "Evening's quiet. Add something low-effort, or leave it empty."
         }
     }
 }

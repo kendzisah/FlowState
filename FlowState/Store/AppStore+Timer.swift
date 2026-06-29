@@ -107,7 +107,10 @@ extension AppStore {
         switch timerMode {
         case .countdown:
             timerSecondsRemaining = max(timerSecondsRemaining - 1, 0)
-            if timerSecondsRemaining == 0, let task = activeTask {
+            // During a routine run the group duration is a soft guide: when it
+            // hits zero we hold at 0:00 and let the user finish the remaining
+            // tasks rather than auto-ending the whole run.
+            if timerSecondsRemaining == 0, activeRoutineRun == nil, let task = activeTask {
                 completeTask(task, context: nil)
             }
         case .countup:

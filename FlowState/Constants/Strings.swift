@@ -31,8 +31,8 @@ enum AppStrings {
     static let restPeekCTA = "Show me my list anyway"
     static let restPeekFooter = "No pressure. Come back whenever."
 
-    static let switcherTitle = "How's your energy?"
-    static let switcherSubtitle = "Shift your focus level — the list will re-sort."
+    static let switcherTitle = "Where's your battery?"
+    static let switcherSubtitle = "Move the dial and the list re-sorts to match."
     static let switcherCurrentBadge = "CURRENT"
 
     static let durationPickerTitle = "How long?"
@@ -52,14 +52,17 @@ enum AppStrings {
     static let parkedTabLabel = "Parked"
     static let tasksTabLabel = "Tasks"
 
-    static let addTaskTitlePlaceholder = "What's on your mind?"
+    static let addTaskTitlePlaceholder = "What needs doing?"
     static let addTaskSaveAction = "Add"
 
     static let notificationCompletionTitle = "Session complete"
     static let notificationCompletionBody = "Take a breath. You earned it."
 
+    static let notificationEnergyCheckInTitle = "Battery check"
+    static let notificationEnergyCheckInBody = "Tell FlowState your level and it matches the list to it."
+
     static func matchBanner(count: Int, energyLabel: String) -> String {
-        let task = count == 1 ? "task matches" : "tasks match"
-        return "\(count) \(task) your \(energyLabel) energy right now"
+        let task = count == 1 ? "task fits" : "tasks fit"
+        return "\(count) \(task) your \(energyLabel) battery right now"
     }
 }

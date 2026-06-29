@@ -32,6 +32,17 @@ final class RoutineGroup: Identifiable {
     /// hour (08/13/20).
     var reminderHour: Int?
     var reminderMinute: Int?
+    /// How long the user expects the whole group to take when run end-to-end
+    /// via the Calendar "Start" button. A single countdown shared across all
+    /// the group's tasks (not per-task). Nil → `defaultRunDurationSeconds`.
+    /// Onboarding seeds 30 min; the user can change it in the group editor.
+    var totalDurationSeconds: Int?
+
+    /// Fallback run length for groups without an explicit `totalDurationSeconds`.
+    nonisolated static let defaultRunDurationSeconds = 30 * 60
+
+    /// Resolved run length, always non-nil.
+    var runDurationSeconds: Int { totalDurationSeconds ?? Self.defaultRunDurationSeconds }
 
     var slot: RoutineSlot {
         get { RoutineSlot(rawValue: slotRaw) ?? .morning }
@@ -56,7 +67,8 @@ final class RoutineGroup: Identifiable {
         energy: EnergyLevel? = nil,
         userID: String? = nil,
         reminderHour: Int? = nil,
-        reminderMinute: Int? = nil
+        reminderMinute: Int? = nil,
+        totalDurationSeconds: Int? = nil
     ) {
         self.id = UUID()
         self.title = title
@@ -69,5 +81,6 @@ final class RoutineGroup: Identifiable {
         self.lastGeneratedDay = nil
         self.reminderHour = reminderHour
         self.reminderMinute = reminderMinute
+        self.totalDurationSeconds = totalDurationSeconds
     }
 }

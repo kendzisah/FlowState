@@ -20,14 +20,19 @@ struct TimerView: View {
                     .lineLimit(2)
                     .padding(.horizontal, Geometry.horizontalPadding)
 
-                Text(AppStrings.timerFocusLabel)
+                Text(sessionLabel)
                     .font(AppFont.caption)
                     .tracking(1.6)
                     .foregroundStyle(palette.textSecondary)
             }
 
-            DurationChip(mode: store.timerMode, totalSeconds: store.timerDurationSeconds) {
-                store.showDurationPicker = true
+            // The run length for a routine group is a group property (set in
+            // its editor), so the mid-session duration chip is hidden during a
+            // run — changing it here would fight the group's shared countdown.
+            if store.activeRoutineRun == nil {
+                DurationChip(mode: store.timerMode, totalSeconds: store.timerDurationSeconds) {
+                    store.showDurationPicker = true
+                }
             }
 
             CircularTimer(
@@ -42,14 +47,18 @@ struct TimerView: View {
             Spacer(minLength: 8)
 
             VStack(spacing: 12) {
-                Text(AppStrings.timerHijackPrompt)
+                Text(store.activeRoutineRun != nil ? "tap Done as you finish each one" : AppStrings.timerHijackPrompt)
                     .font(AppFont.caption)
                     .foregroundStyle(palette.textDimmed)
 
                 Button {
-                    store.parkTask(context: context)
+                    if store.activeRoutineRun != nil {
+                        store.pauseRoutineRun(context: context)
+                    } else {
+                        store.parkTask(context: context)
+                    }
                 } label: {
-                    Text(AppStrings.timerParkAction)
+                    Text(store.activeRoutineRun != nil ? "Pause" : AppStrings.timerParkAction)
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundStyle(palette.textPrimary)
                         .frame(maxWidth: .infinity, minHeight: Geometry.minTapTarget)
@@ -66,7 +75,11 @@ struct TimerView: View {
 
                 Button {
                     if let task = store.activeTask {
-                        store.completeTask(task, context: context)
+                        if store.activeRoutineRun != nil {
+                            store.completeRoutineTask(task, context: context)
+                        } else {
+                            store.completeTask(task, context: context)
+                        }
                     }
                 } label: {
                     Text(AppStrings.timerDoneAction)
@@ -92,5 +105,13 @@ struct TimerView: View {
             title: "Quiet focus",
             body: "Tap the duration to change it. Park the task to come back later — it goes to your parked list, not the bin. Complete to log it and clear the screen."
         )
+    }
+
+    /// "ROUTINE · 2/5" while running a group; the plain focus label otherwise.
+    private var sessionLabel: String {
+        if let run = store.activeRoutineRun {
+            return "ROUTINE · \(run.currentPosition)/\(run.totalCount)"
+        }
+        return AppStrings.timerFocusLabel
     }
 }

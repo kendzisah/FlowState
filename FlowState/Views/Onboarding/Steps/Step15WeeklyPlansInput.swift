@@ -104,6 +104,11 @@ struct Step15WeeklyPlansInput: View {
         }
         .padding(.horizontal, Geometry.horizontalPadding)
         .padding(.bottom, 24)
+        // Tap anywhere outside the text editor (or its buttons, which consume
+        // their own taps) to dismiss the keyboard. Tapping the editor again
+        // re-focuses it.
+        .contentShape(Rectangle())
+        .onTapGesture { inputFocused = false }
         .onAppear { inputFocused = true }
     }
 

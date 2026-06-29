@@ -1,9 +1,9 @@
 import SwiftUI
 
-/// Inline composer for adding a task scoped to a time slot on the Calendar tab.
-/// Pinned via `safeAreaInset(.bottom)` so it auto-rises above the keyboard.
+/// Inline composer for adding an untimed task on the Schedule tab. Pinned via
+/// `safeAreaInset(.bottom)` so it auto-rises above the keyboard. New items land
+/// in the "No set time" tray; the user pins a time later via Reschedule.
 struct CalendarItemComposer: View {
-    @Binding var slot: DayTimeSlot
     @Binding var title: String
     @Binding var energyOverride: EnergyLevel?
     @Binding var recurrence: Recurrence
@@ -66,12 +66,12 @@ struct CalendarItemComposer: View {
         HStack(spacing: 0) {
             TextField("", text: $title, prompt:
                 Text("What's next?")
-                    .font(.system(size: 22, weight: .regular, design: .serif))
+                    .font(.system(size: 22, weight: .regular))
                     .italic()
                     .foregroundStyle(palette.textDimmed)
             )
             .focused($titleFocused)
-            .font(.system(size: 22, weight: .regular, design: .serif))
+            .font(.system(size: 22, weight: .regular))
             .foregroundStyle(palette.textPrimary)
             .submitLabel(.done)
             .onSubmit {
@@ -98,7 +98,6 @@ struct CalendarItemComposer: View {
     private var chipsRow: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                slotChip
                 energyChip
                 recurrenceChip
                 moreChip
@@ -107,21 +106,6 @@ struct CalendarItemComposer: View {
             }
             .padding(.trailing, 4)
         }
-    }
-
-    private var slotChip: some View {
-        Menu {
-            ForEach(DayTimeSlot.allCases) { option in
-                Button {
-                    slot = option
-                } label: {
-                    Label(option.title, systemImage: option.iconName)
-                }
-            }
-        } label: {
-            chipLabel(icon: slot.iconName, text: slot.title.uppercased())
-        }
-        .accessibilityLabel("Time slot: \(slot.title)")
     }
 
     private var energyChip: some View {

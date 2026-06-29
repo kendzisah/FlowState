@@ -8,6 +8,7 @@ struct TaskListView: View {
 
     @Query(sort: \Task.createdAt, order: .reverse) private var everyTask: [Task]
     @Query(sort: \ParkedTask.parkedAt, order: .reverse) private var everyParked: [ParkedTask]
+    @Query(sort: \ImportedEvent.startDate) private var everyEvent: [ImportedEvent]
 
     /// Rows owned by the signed-in user. SwiftData stores everyone's data
     /// locally; the filter (plus Supabase RLS) is what scopes display.
@@ -19,32 +20,22 @@ struct TaskListView: View {
         guard let uid = AuthManager.shared.currentUserID else { return [] }
         return everyParked.filter { $0.userID == uid }
     }
+    private var allEvents: [ImportedEvent] {
+        guard let uid = AuthManager.shared.currentUserID else { return [] }
+        return everyEvent.filter { $0.userID == uid }
+    }
 
     @State private var selectedTab: TaskListTab = .tasks
     @State private var schedulingTask: Task?
     @State private var editingTask: Task?
     @State private var deletingTask: Task?
-    @State private var editingRoutine: RoutineTag?
-    @State private var deletingRoutineTask: Task?
-    @State private var addingInGroup: RoutineGroup?
-    @State private var addingGroupSlot: RoutineSlot?
-    @State private var editingGroup: RoutineGroup?
-    @State private var deletingGroup: RoutineGroup?
     @Namespace private var taskCardNS
-
-    @Query private var everyRoutine: [RoutineTag]
-    @Query private var everyGroup: [RoutineGroup]
-
-    private var allGroups: [RoutineGroup] {
-        guard let uid = AuthManager.shared.currentUserID else { return [] }
-        return everyGroup.filter { $0.userID == uid || $0.userID == nil }
-    }
 
     /// Tasks worth surfacing today: unscheduled (backlog) + scheduled for today
     /// or earlier (so past-due items roll forward). Future-scheduled tasks are
     /// hidden until their day arrives — they live on the Calendar tab.
-    /// Routine tasks are excluded; they render in their own slot groups above
-    /// via `routinesBySlot`.
+    /// Routine tasks are excluded entirely; routines are created and managed on
+    /// the Calendar tab, not here.
     private var todayTasks: [Task] {
         let calendar = Calendar.current
         let endOfToday = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: Date())) ?? Date()
@@ -55,51 +46,37 @@ struct TaskListView: View {
         }
     }
 
-    /// Today's routine groups, organized by slot. Each entry pairs a group
-    /// with the materialized child tasks for today. Includes completed tasks
-    /// so the `X/Y` progress counter reflects the user's actual day-state.
-    /// Empty groups (no children today) are kept so users can still
-    /// long-press the header to add items or delete the group.
-    private func groupsByGroupID(for today: [Task]) -> [UUID: [Task]] {
-        var byGroup: [UUID: [Task]] = [:]
-        for t in today {
-            guard let rid = t.sourceRoutineID,
-                  let tag = everyRoutine.first(where: { $0.id == rid }),
-                  let gid = tag.groupID else { continue }
-            byGroup[gid, default: []].append(t)
-        }
-        return byGroup
+    /// Flexible work — no committed clock time. These flow into the energy
+    /// lanes and are surfaced by current energy. (Anchored tasks are pulled
+    /// out into the FixedPointsRail instead.)
+    private var flexibleToday: [Task] {
+        todayTasks.filter { !$0.isAnchored }
     }
 
-    private var groupsForToday: [(slot: RoutineSlot, group: RoutineGroup, tasks: [Task])] {
+    /// Anchored items for today, time-sorted: imported calendar events plus
+    /// tasks the user committed to a clock time. Rendered in the FixedPointsRail
+    /// above the energy lanes.
+    private var anchoredToday: [DayItem] {
         let calendar = Calendar.current
-        let startOfToday = calendar.startOfDay(for: Date())
-        let endOfToday = calendar.date(byAdding: .day, value: 1, to: startOfToday) ?? Date()
-        let today = allTasks.filter { task in
-            guard task.isRoutine, let s = task.scheduledDate else { return false }
-            return s >= startOfToday && s < endOfToday
-        }
-        let byGroup = groupsByGroupID(for: today)
+        let today = Date()
+        var items: [DayItem] = []
 
-        let slotOrder: [RoutineSlot] = [.morning, .afternoon, .evening]
-        var result: [(slot: RoutineSlot, group: RoutineGroup, tasks: [Task])] = []
-        for slot in slotOrder {
-            let groupsInSlot = allGroups
-                .filter { $0.slot == slot
-                    && $0.recurrence.coversToday(from: $0.createdAt, calendar: calendar) }
-                .sorted { $0.createdAt < $1.createdAt }
-            for g in groupsInSlot {
-                let tasks = (byGroup[g.id] ?? [])
-                    .sorted { ($0.scheduledDate ?? .distantPast) < ($1.scheduledDate ?? .distantPast) }
-                // Hide a group once every routine for today is complete — the
-                // user is "done" with it for today. Empty groups (no children
-                // yet) still show so the user can add routines or manage it.
-                let allDone = !tasks.isEmpty && tasks.allSatisfy(\.isCompleted)
-                if allDone { continue }
-                result.append((slot, g, tasks))
+        for event in allEvents where CalendarDayBuckets.event(event, overlaps: today, calendar: calendar) {
+            items.append(.event(event))
+        }
+
+        for task in todayTasks where task.isAnchored && !task.isCompleted {
+            // Recurring tasks only appear on days their rule fires. Non-recurring
+            // tasks fall back to their original time so a past-due appointment
+            // that rolled forward into today still shows.
+            let when: Date? = task.recurrence == .none
+                ? (task.occurrenceDate(on: today, calendar: calendar) ?? task.scheduledDate)
+                : task.occurrenceDate(on: today, calendar: calendar)
+            if let when {
+                items.append(.task(task, occurrenceDate: when))
             }
         }
-        return result
+        return items
     }
 
     var body: some View {
@@ -137,40 +114,6 @@ struct TaskListView: View {
             AddTaskSheet(editing: task)
                 .environment(\.palette, palette)
         }
-        .routineSheets(
-            editingRoutine: $editingRoutine,
-            addingInGroup: $addingInGroup,
-            addingGroupSlot: $addingGroupSlot,
-            editingGroup: $editingGroup,
-            palette: palette,
-            todayInstance: { todayInstance(of: $0) }
-        )
-        .alert(
-            "Delete routine?",
-            isPresented: Binding(
-                get: { deletingRoutineTask != nil },
-                set: { if !$0 { deletingRoutineTask = nil } }
-            ),
-            presenting: deletingRoutineTask
-        ) { task in
-            Button("Cancel", role: .cancel) { }
-            Button("Delete", role: .destructive) { performRoutineDelete(task) }
-        } message: { task in
-            Text("\u{201C}\(task.title)\u{201D} will stop repeating. Today's instance is removed too.")
-        }
-        .alert(
-            "Delete this group?",
-            isPresented: Binding(
-                get: { deletingGroup != nil },
-                set: { if !$0 { deletingGroup = nil } }
-            ),
-            presenting: deletingGroup
-        ) { group in
-            Button("Cancel", role: .cancel) { }
-            Button("Delete all", role: .destructive) { performGroupDelete(group) }
-        } message: { group in
-            Text("Every routine in \u{201C}\(group.title)\u{201D} will stop repeating.")
-        }
         .alert(
             "Delete task?",
             isPresented: Binding(
@@ -184,128 +127,6 @@ struct TaskListView: View {
         } message: { task in
             Text("\u{201C}\(task.title)\u{201D} will be removed. This can't be undone.")
         }
-    }
-
-    /// Quick checkbox completion for routine rows. No timer involved —
-    /// the routine just marks itself done for today. `RoutineScheduler` will
-    /// materialize a fresh instance tomorrow. A light haptic acknowledges
-    /// the tap; the row fades out via `RoutineSlotSection`'s transition.
-    private func toggleRoutine(_ task: Task) {
-        if !task.isCompleted { store.impactHaptic(.light) }
-        task.isCompleted.toggle()
-        task.completedAt = task.isCompleted ? Date() : nil
-        task.markDirty()
-        context.saveAndSync()
-    }
-
-    private func presentRoutineEdit(for task: Task) {
-        guard let rid = task.sourceRoutineID,
-              let tag = everyRoutine.first(where: { $0.id == rid }) else { return }
-        editingRoutine = tag
-    }
-
-    private func todayInstance(of routine: RoutineTag) -> Task? {
-        let cal = Calendar.current
-        let start = cal.startOfDay(for: Date())
-        let end = cal.date(byAdding: .day, value: 1, to: start) ?? Date()
-        return allTasks.first { t in
-            t.sourceRoutineID == routine.id
-                && (t.scheduledDate.map { $0 >= start && $0 < end } ?? false)
-        }
-    }
-
-    /// Deletes a whole `RoutineGroup` plus every child tag and every Task
-    /// ever materialized from those tags. Fire-and-forget remote delete so
-    /// the server doesn't resurrect them on the next pull.
-    private func performGroupDelete(_ group: RoutineGroup) {
-        let tagsInGroup = everyRoutine.filter { $0.groupID == group.id }
-        let tagIDs = Set(tagsInGroup.map(\.id))
-        let derived = allTasks.filter { $0.sourceRoutineID.map { tagIDs.contains($0) } ?? false }
-        for t in derived {
-            SyncEngine.shared.deleteRemote(Task.self, id: t.id)
-            context.delete(t)
-        }
-        for tag in tagsInGroup { context.delete(tag) }
-        context.delete(group)
-        context.saveAndSync()
-        NotificationManager.refreshAllRoutineReminders(context: context)
-    }
-
-    @ViewBuilder
-    private var routineSections: some View {
-        let entries = groupsForToday
-        let slotOrder: [RoutineSlot] = [.morning, .afternoon, .evening]
-        VStack(spacing: 12) {
-            ForEach(slotOrder, id: \.self) { slot in
-                let slotEntries = entries.filter { $0.slot == slot }
-                ForEach(slotEntries, id: \.group.id) { entry in
-                    RoutineSlotSection(
-                        group: entry.group,
-                        tasks: entry.tasks,
-                        onToggle: { toggleRoutine($0) },
-                        onEdit: { presentRoutineEdit(for: $0) },
-                        onDelete: { deletingRoutineTask = $0 },
-                        onAddItem: { addingInGroup = $0 },
-                        onEditGroup: { editingGroup = $0 },
-                        onDeleteGroup: { deletingGroup = $0 }
-                    )
-                    .transition(.asymmetric(
-                        insertion: .opacity,
-                        removal: .scale(scale: 0.95).combined(with: .opacity)
-                    ))
-                }
-            }
-            newRoutineGroupButton
-        }
-        .animation(.easeOut(duration: 0.3), value: entries.map(\.group.id))
-    }
-
-    /// One general entry-point for creating a routine group. The sheet itself
-    /// asks for a reminder time and auto-derives the slot, so we no longer
-    /// need three slot-specific buttons.
-    private var newRoutineGroupButton: some View {
-        Button {
-            addingGroupSlot = RoutineSlot.from(hour: Calendar.current.component(.hour, from: Date()))
-        } label: {
-            HStack(spacing: 8) {
-                Image(systemName: "plus.circle")
-                    .font(.system(size: 13, weight: .semibold))
-                Text("New routine group")
-                    .font(AppFont.caption)
-                Spacer()
-            }
-            .foregroundStyle(palette.textSecondary)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
-            .background(
-                RoundedRectangle(cornerRadius: Geometry.buttonRadius, style: .continuous)
-                    .strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
-                    .foregroundStyle(palette.border)
-            )
-        }
-        .buttonStyle(.pressable)
-        .accessibilityLabel("New routine group")
-    }
-
-    /// Deletes the source routine (so it stops repeating) and every Task
-    /// already materialized from it. We also fire `deleteRemote` for each
-    /// task so Supabase doesn't resurrect them on the next pull.
-    private func performRoutineDelete(_ task: Task) {
-        guard let rid = task.sourceRoutineID else {
-            context.delete(task)
-            context.saveAndSync()
-            return
-        }
-        let derived = allTasks.filter { $0.sourceRoutineID == rid }
-        for t in derived {
-            SyncEngine.shared.deleteRemote(Task.self, id: t.id)
-            context.delete(t)
-        }
-        if let tag = everyRoutine.first(where: { $0.id == rid }) {
-            context.delete(tag)
-        }
-        context.saveAndSync()
-        NotificationManager.refreshAllRoutineReminders(context: context)
     }
 
     private func performDelete(_ task: Task) {
@@ -324,15 +145,17 @@ struct TaskListView: View {
     }
 
     private var header: some View {
-        HStack(spacing: 8) {
-            BatteryPill()
-            Spacer()
-            iconButton(systemName: "gearshape", label: "Settings") {
-                store.showSettings = true
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                Spacer()
+                iconButton(systemName: "gearshape", label: "Settings") {
+                    store.showSettings = true
+                }
+                iconButton(systemName: "plus", label: "Add task") {
+                    store.showAddTask = true
+                }
             }
-            iconButton(systemName: "plus", label: "Add task") {
-                store.showAddTask = true
-            }
+            EnergyHero()
         }
         .padding(.horizontal, Geometry.horizontalPadding)
         .padding(.top, 12)
@@ -366,17 +189,20 @@ struct TaskListView: View {
     private var tasksContent: some View {
         ScrollView {
             VStack(spacing: 12) {
-                routineSections
+                // Fixed commitments are time-bound facts the user still needs
+                // even when foggy, so the rail shows regardless of energy.
+                FixedPointsRail(items: anchoredToday) { task in
+                    editingTask = task
+                }
 
                 // Foggy hides the energy-matched task list entirely — rest is
                 // a legitimate state and the system shouldn't pile a backlog
-                // on top of someone trying to rest. Routines (energy-neutral)
-                // remain because they're habit anchors, not work.
+                // on top of someone trying to rest.
                 if store.energyLevel != .foggy {
                     energySections
                 }
 
-                if todayTasks.isEmpty && groupsForToday.isEmpty {
+                if anchoredToday.isEmpty && flexibleToday.isEmpty {
                     emptyState
                 }
             }
@@ -391,7 +217,7 @@ struct TaskListView: View {
         let currentEnergy = store.energyLevel
         VStack(spacing: 12) {
             ForEach(EnergyLevel.taskAssignable, id: \.self) { level in
-                let tasksAtLevel = todayTasks
+                let tasksAtLevel = flexibleToday
                     .filter { !$0.isCompleted && $0.energyTag == level }
                     .sorted { $0.createdAt > $1.createdAt }
                 if !tasksAtLevel.isEmpty {
@@ -414,7 +240,7 @@ struct TaskListView: View {
                 }
             }
         }
-        .animation(.easeOut(duration: 0.3), value: todayTasks.filter { !$0.isCompleted }.map(\.id))
+        .animation(.easeOut(duration: 0.3), value: flexibleToday.filter { !$0.isCompleted }.map(\.id))
     }
 
     @ViewBuilder
@@ -445,10 +271,10 @@ struct TaskListView: View {
 
     private var emptyState: some View {
         VStack(spacing: 8) {
-            Text("Nothing here yet.")
+            Text("Nothing on the list.")
                 .font(AppFont.body)
                 .foregroundStyle(palette.textSecondary)
-            Text("Tap + to add your first task.")
+            Text("Tap + when something needs doing.")
                 .font(AppFont.caption)
                 .foregroundStyle(palette.textDimmed)
         }

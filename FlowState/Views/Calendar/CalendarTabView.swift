@@ -33,8 +33,9 @@ struct CalendarTabView: View {
     @State private var importError: String?
     @State private var classifyInFlight = false
 
-    // Inline composer state. When `composerSlot` is non-nil, the composer is presented.
-    @State private var composerSlot: DayTimeSlot?
+    // Inline composer state. When `composerActive` is true, the composer is
+    // presented; new items are untimed (land in the "No set time" tray).
+    @State private var composerActive: Bool = false
     @State private var composerTitle: String = ""
     @State private var composerEnergyOverride: EnergyLevel?
     @State private var composerRecurrence: Recurrence = .none
@@ -52,6 +53,7 @@ struct CalendarTabView: View {
 
     @State private var editingTask: Task?
     @State private var deletingTask: Task?
+    @State private var reschedulingTask: Task?
 
     private let calendar = Calendar.current
 
@@ -68,13 +70,21 @@ struct CalendarTabView: View {
         return items
     }
 
-    private var buckets: [DayTimeSlot: [DayItem]] {
-        CalendarDayBuckets.bucket(dayItems, on: selectedDate, calendar: calendar)
+    /// Routine groups for the selected day, flattened across slots. The
+    /// timeline places each at its reminder time.
+    private var allGroupEntries: [(group: RoutineGroup, tasks: [Task])] {
+        groupsByDaySlot.values.flatMap { $0 }
+    }
+
+    /// The day split into a chronological timed list (events, task occurrences,
+    /// routine groups) and a separate "no set time" list.
+    private var timeline: (timed: [TimelineEntry], noSetTime: [DayItem]) {
+        TimelineBuilder.build(items: dayItems, groups: allGroupEntries, on: selectedDate, calendar: calendar)
     }
 
     /// Routine groups (with their child tasks for `selectedDate`) keyed by
-    /// the calendar's `DayTimeSlot`. Used by `slotSections` to render a
-    /// `RoutineSlotSection` per group inside the matching slot card.
+    /// the calendar's `DayTimeSlot`. Flattened by `allGroupEntries` and placed
+    /// on the timeline at each group's reminder time.
     private var groupsByDaySlot: [DayTimeSlot: [(group: RoutineGroup, tasks: [Task])]] {
         let start = calendar.startOfDay(for: selectedDate)
         guard let end = calendar.date(byAdding: .day, value: 1, to: start) else { return [:] }
@@ -135,16 +145,13 @@ struct CalendarTabView: View {
         let tagsInGroup = everyRoutine.filter { $0.groupID == group.id }
         guard !tagsInGroup.isEmpty else { return [] }
 
-        let hour: Int = {
-            switch group.slot {
-            case .morning:   return 8
-            case .afternoon: return 13
-            case .evening:   return 20
-            }
-        }()
+        // Honor the group's actual reminder time so non-today preview rows land
+        // at the same hour the real materialization (and notification) will use.
+        let hour = group.reminderHour ?? TimelineBuilder.defaultHour(for: group.slot)
+        let minute = group.reminderMinute ?? 0
         let dayStart = calendar.startOfDay(for: day)
         let scheduledAt = calendar.date(
-            bySettingHour: hour, minute: 0, second: 0, of: dayStart
+            bySettingHour: hour, minute: minute, second: 0, of: dayStart
         ) ?? day
         let userID = AuthManager.shared.currentUserID
 
@@ -191,13 +198,13 @@ struct CalendarTabView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 topActions
-                DayHeaderView(date: selectedDate) {
+                DayNavBar(selectedDate: $selectedDate) {
                     showMonthPicker = true
                 }
-                WeekStripView(selectedDate: $selectedDate)
                 tipCardsRow
-                slotSections
-                    .padding(.top, 4)
+                noSetTimeTray
+                dayTimeline
+                newRoutineGroupButton
             }
             .padding(.horizontal, Geometry.horizontalPadding)
             .padding(.top, 8)
@@ -206,7 +213,7 @@ struct CalendarTabView: View {
         .safeAreaInset(edge: .bottom, spacing: 0) {
             composerInset
         }
-        .animation(.easeOut(duration: 0.22), value: composerSlot)
+        .animation(.easeOut(duration: 0.22), value: composerActive)
         .sheet(isPresented: $showMonthPicker) {
             MonthPickerSheet(selectedDate: $selectedDate) {
                 showMonthPicker = false
@@ -230,6 +237,14 @@ struct CalendarTabView: View {
         .sheet(item: $editingTask) { task in
             AddTaskSheet(editing: task)
                 .environment(\.palette, palette)
+        }
+        .sheet(item: $reschedulingTask) { task in
+            ScheduleTaskSheet(task: task) {
+                reschedulingTask = nil
+            }
+            .environment(\.palette, palette)
+            .presentationDetents([.medium])
+            .presentationDragIndicator(.visible)
         }
         .alert(
             "Delete task?",
@@ -276,12 +291,8 @@ struct CalendarTabView: View {
 
     @ViewBuilder
     private var composerInset: some View {
-        if composerSlot != nil {
+        if composerActive {
             CalendarItemComposer(
-                slot: Binding(
-                    get: { composerSlot ?? .anytime },
-                    set: { composerSlot = $0 }
-                ),
                 title: $composerTitle,
                 energyOverride: $composerEnergyOverride,
                 recurrence: $composerRecurrence,
@@ -292,15 +303,15 @@ struct CalendarTabView: View {
         }
     }
 
-    private func openComposer(slot: DayTimeSlot) {
+    private func openComposer() {
         composerTitle = ""
         composerEnergyOverride = nil
         composerRecurrence = .none
-        composerSlot = slot
+        composerActive = true
     }
 
     private func dismissComposer() {
-        composerSlot = nil
+        composerActive = false
         composerTitle = ""
         composerEnergyOverride = nil
         composerRecurrence = .none
@@ -308,28 +319,19 @@ struct CalendarTabView: View {
 
     private func saveComposerTask() {
         let trimmed = composerTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, let slot = composerSlot else { return }
+        guard !trimmed.isEmpty else { return }
 
         let energy = composerEnergyOverride ?? EventEnergyClassifier.heuristic(for: trimmed)
         let task = Task(title: trimmed, energyTag: energy)
-        task.scheduledDate = scheduledDate(for: slot, on: selectedDate)
+        // New items are untimed: date-only placement on the selected day, which
+        // lands them in the "No set time" tray (and the home's flexible energy
+        // lane). The user pins a time later via Reschedule, which sets isAnchored.
+        task.scheduledDate = calendar.startOfDay(for: selectedDate)
+        task.isAnchored = false
         task.recurrence = composerRecurrence
         modelContext.insert(task)
         modelContext.saveAndSync()
         dismissComposer()
-    }
-
-    /// Default time-of-day per slot. Aligns with `CalendarDayBuckets.slot(for:on:)`.
-    private func scheduledDate(for slot: DayTimeSlot, on day: Date) -> Date {
-        let dayStart = calendar.startOfDay(for: day)
-        let hour: Int
-        switch slot {
-        case .anytime:   hour = 0
-        case .morning:   hour = 9
-        case .afternoon: hour = 14
-        case .evening:   hour = 19
-        }
-        return calendar.date(byAdding: .hour, value: hour, to: dayStart) ?? dayStart
     }
 
     // MARK: - Top actions (auto-sort, add)
@@ -375,7 +377,7 @@ struct CalendarTabView: View {
             .accessibilityLabel("Auto-sort events by energy")
 
             Button {
-                openComposer(slot: .anytime)
+                openComposer()
             } label: {
                 Image(systemName: "plus")
                     .font(.system(size: 16, weight: .bold))
@@ -418,74 +420,76 @@ struct CalendarTabView: View {
         }
     }
 
-    // MARK: - Slot sections
+    // MARK: - Day sections
 
-    private var slotSections: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            ForEach(DayTimeSlot.allCases) { slot in
-                let groupEntries = groupsByDaySlot[slot] ?? []
-                let totalRoutineCount = groupEntries.reduce(0) { $0 + $1.tasks.count }
-                TimeSlotSection(
-                    slot: slot,
-                    items: buckets[slot] ?? [],
-                    classifyingEventIDs: classifyingEventIDs,
-                    isAutoSortingAnytime: slot == .anytime && isAutoSortingAnytime,
-                    onAddTap: { tappedSlot in openComposer(slot: tappedSlot) },
-                    onPickEnergy: { item, level in
-                        applyEnergy(item, level: level)
-                    },
-                    onAutoClassify: { item in
-                        autoClassifyOne(item)
-                    },
-                    onMoveToSlot: { item, target in
-                        moveItem(item, to: target)
-                    },
-                    onAutoSortAnytime: slot == .anytime ? { runAutoSortAnytime() } : nil,
-                    onEditTask: { editingTask = $0 },
-                    onDeleteTask: { deletingTask = $0 },
-                    routineContent: routineContent(for: slot, groups: groupEntries),
-                    routineCount: totalRoutineCount
-                )
-            }
-        }
-    }
-
-    private func routineContent(
-        for slot: DayTimeSlot,
-        groups: [(group: RoutineGroup, tasks: [Task])]
-    ) -> AnyView? {
-        guard let routineSlot = routineSlot(for: slot) else { return nil }
-        let isToday = calendar.isDate(selectedDate, inSameDayAs: Date())
-        // Always render the inline `+ New group` button for the slot, even
-        // when no groups exist — that's how the user creates the first one.
-        return AnyView(
-            VStack(spacing: 8) {
-                ForEach(groups, id: \.group.id) { entry in
-                    RoutineSlotSection(
-                        group: entry.group,
-                        tasks: entry.tasks,
-                        onToggle: { toggleRoutine($0) },
-                        onEdit: { presentRoutineEdit(for: $0) },
-                        onDelete: { deletingRoutineTask = $0 },
-                        onAddItem: { addingInGroup = $0 },
-                        onEditGroup: { editingGroup = $0 },
-                        onDeleteGroup: { deletingGroup = $0 },
-                        isPreview: !isToday
-                    )
-                }
-                addGroupButton(for: routineSlot)
-            }
+    private var noSetTimeTray: some View {
+        NoSetTimeTray(
+            items: timeline.noSetTime,
+            classifyingEventIDs: classifyingEventIDs,
+            isAutoSorting: isAutoSortingAnytime,
+            onPickEnergy: { item, level in applyEnergy(item, level: level) },
+            onAutoClassify: { autoClassifyOne($0) },
+            onReschedule: { reschedulingTask = $0 },
+            onAutoSortAll: { runAutoSortAnytime() },
+            onEditTask: { editingTask = $0 },
+            onDeleteTask: { deletingTask = $0 },
+            onAdd: { openComposer() }
         )
     }
 
-    private func addGroupButton(for slot: RoutineSlot) -> some View {
-        Button {
-            addingGroupSlot = slot
+    private var dayTimeline: some View {
+        DayTimelineView(
+            entries: timeline.timed,
+            classifyingEventIDs: classifyingEventIDs,
+            routineRow: { routineRow(group: $0, tasks: $1) },
+            onPickEnergy: { item, level in applyEnergy(item, level: level) },
+            onAutoClassify: { autoClassifyOne($0) },
+            onReschedule: { reschedulingTask = $0 },
+            onEditTask: { editingTask = $0 },
+            onDeleteTask: { deletingTask = $0 }
+        )
+    }
+
+    // MARK: - Routine rows
+
+    /// A single routine group card for the timeline, placed at its reminder time.
+    private func routineRow(group: RoutineGroup, tasks: [Task]) -> AnyView {
+        let isToday = calendar.isDate(selectedDate, inSameDayAs: Date())
+        return AnyView(
+            RoutineSlotSection(
+                group: group,
+                tasks: tasks,
+                onToggle: { toggleRoutine($0) },
+                onEdit: { presentRoutineEdit(for: $0) },
+                onDelete: { deletingRoutineTask = $0 },
+                onAddItem: { addingInGroup = $0 },
+                onEditGroup: { editingGroup = $0 },
+                onDeleteGroup: { deletingGroup = $0 },
+                isPreview: !isToday,
+                onStartRun: { store.startRoutineRun(group: $0, tasks: tasks, context: modelContext) },
+                onResumeRun: { store.resumeRoutineRun(group: $0, tasks: tasks, context: modelContext) },
+                isPausedRun: store.isPaused(group: group),
+                runDisabled: store.activeTask != nil
+            )
+        )
+    }
+
+    /// Single entry point to create a routine group (the slot headers that used
+    /// to host per-slot "New group" buttons are gone).
+    private var newRoutineGroupButton: some View {
+        Menu {
+            ForEach(RoutineSlot.allCases) { slot in
+                Button {
+                    addingGroupSlot = slot
+                } label: {
+                    Text(slotLabel(slot))
+                }
+            }
         } label: {
             HStack(spacing: 8) {
                 Image(systemName: "plus.circle")
                     .font(.system(size: 13, weight: .semibold))
-                Text("New \(slotLabel(slot).lowercased()) group")
+                Text("New routine group")
                     .font(AppFont.caption)
                 Spacer()
             }
@@ -499,16 +503,7 @@ struct CalendarTabView: View {
             )
         }
         .buttonStyle(.pressable)
-        .accessibilityLabel("Add new \(slotLabel(slot)) routine group")
-    }
-
-    private func routineSlot(for daySlot: DayTimeSlot) -> RoutineSlot? {
-        switch daySlot {
-        case .morning:   return .morning
-        case .afternoon: return .afternoon
-        case .evening:   return .evening
-        case .anytime:   return nil
-        }
+        .accessibilityLabel("Add a new routine group")
     }
 
     // MARK: - Routine actions (mirrors TaskListView)
@@ -592,16 +587,6 @@ struct CalendarTabView: View {
         NotificationManager.refreshAllRoutineReminders(context: modelContext)
     }
 
-    private func moveItem(_ item: DayItem, to target: DayTimeSlot) {
-        switch item {
-        case .event(let event):
-            event.displaySlot = target
-        case .task(let task, _):
-            task.scheduledDate = scheduledDate(for: target, on: selectedDate)
-        }
-        modelContext.saveAndSync()
-    }
-
     // MARK: - Actions
 
     private func applyEnergy(_ item: DayItem, level: EnergyLevel) {
@@ -634,7 +619,7 @@ struct CalendarTabView: View {
     }
 
     private func runAutoSortAnytime() {
-        let anytimeItems = buckets[.anytime] ?? []
+        let anytimeItems = timeline.noSetTime
         guard !anytimeItems.isEmpty, !isAutoSortingAnytime else { return }
         let eventIDs = Set(anytimeItems.compactMap { item -> UUID? in
             if case .event(let e) = item { return e.id }
@@ -653,7 +638,7 @@ struct CalendarTabView: View {
     }
 
     private func runAutoSort() {
-        let toClassify = (buckets.values.flatMap { $0 }).compactMap { item -> ImportedEvent? in
+        let toClassify = dayItems.compactMap { item -> ImportedEvent? in
             if case .event(let e) = item, !e.userOverrideEnergy { return e }
             return nil
         }
@@ -696,5 +681,109 @@ struct CalendarTabView: View {
                 }
             }
         }
+    }
+}
+
+// MARK: - Day timeline
+//
+// Lives in this file (rather than its own) because Xcode's synchronized-folder
+// file watching is unreliable on this mounted volume — a standalone file added
+// externally wasn't reliably picked up into the target.
+
+/// Vertical day timeline for the Schedule tab. Groups timed entries (events,
+/// task occurrences, routine groups) under a sparse hour rail — only hours that
+/// actually have something are shown. Replaces the fixed MORNING/AFTERNOON/
+/// EVENING period buckets with a chronological, clock-driven layout.
+struct DayTimelineView: View {
+    let entries: [TimelineEntry]
+    let classifyingEventIDs: Set<UUID>
+    /// Builds the RoutineSlotSection card for a routine group entry.
+    let routineRow: (RoutineGroup, [Task]) -> AnyView
+    let onPickEnergy: (DayItem, EnergyLevel) -> Void
+    let onAutoClassify: (DayItem) -> Void
+    var onReschedule: ((Task) -> Void)? = nil
+    var onEditTask: ((Task) -> Void)? = nil
+    var onDeleteTask: ((Task) -> Void)? = nil
+
+    @Environment(\.palette) private var palette
+    private let calendar = Calendar.current
+
+    /// One hour band of the timeline. A concrete Identifiable type (rather than
+    /// a labeled tuple) keeps the SwiftUI `body` cheap to type-check.
+    private struct HourGroup: Identifiable {
+        let hour: Int
+        let entries: [TimelineEntry]
+        var id: Int { hour }
+    }
+
+    private var hourGroups: [HourGroup] {
+        let grouped: [Int: [TimelineEntry]] = Dictionary(grouping: entries) { $0.hour }
+        let hours: [Int] = grouped.keys.sorted()
+        return hours.map { hour in
+            HourGroup(hour: hour, entries: grouped[hour] ?? [])
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            ForEach(hourGroups) { group in
+                hourRow(group)
+            }
+        }
+    }
+
+    private func hourRow(_ group: HourGroup) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            VStack(spacing: 6) {
+                Text(hourLabel(group.hour))
+                    .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(palette.textSecondary)
+                Rectangle()
+                    .fill(palette.border)
+                    .frame(width: 1)
+                    .frame(maxHeight: .infinity)
+            }
+            .frame(width: 52)
+
+            VStack(spacing: 8) {
+                ForEach(group.entries) { entry in
+                    entryView(entry)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func entryView(_ entry: TimelineEntry) -> some View {
+        switch entry {
+        case .item(let item):
+            DayItemCard(
+                item: item,
+                isClassifying: isClassifying(item),
+                onPickEnergy: { onPickEnergy(item, $0) },
+                onAutoClassify: { onAutoClassify(item) },
+                onReschedule: onReschedule,
+                onEditTask: onEditTask,
+                onDeleteTask: onDeleteTask
+            )
+        case .routine(let group, let tasks, _):
+            routineRow(group, tasks)
+        }
+    }
+
+    private func isClassifying(_ item: DayItem) -> Bool {
+        if case .event(let event) = item {
+            return classifyingEventIDs.contains(event.id)
+        }
+        return false
+    }
+
+    private func hourLabel(_ hour: Int) -> String {
+        var comps = DateComponents()
+        comps.hour = hour
+        let date = calendar.date(from: comps) ?? Date()
+        let f = DateFormatter()
+        f.dateFormat = "h a"
+        return f.string(from: date)
     }
 }

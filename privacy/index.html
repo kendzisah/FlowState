@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Privacy Policy — FlowState</title>
+  <meta name="description" content="How FlowState collects, uses, and protects your information.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%98%81%EF%B8%8F%3C/text%3E%3C/svg%3E">
+  <style>
+    :root {
+      --bg: #0f1115;
+      --surface: #181b22;
+      --text: #e8e7e3;
+      --text-dim: #9a978f;
+      --accent: #d8b873;
+      --border: rgba(255,255,255,0.08);
+    }
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg: #faf8f3;
+        --surface: #ffffff;
+        --text: #1a1a1a;
+        --text-dim: #5c5c5c;
+        --accent: #8a6d2a;
+        --border: rgba(0,0,0,0.08);
+      }
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+      font-size: 16px;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+    main {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 56px 24px 96px;
+    }
+    h1 {
+      font-size: 32px;
+      letter-spacing: -0.5px;
+      margin: 0 0 8px;
+    }
+    h2 {
+      font-size: 20px;
+      margin: 40px 0 12px;
+      letter-spacing: -0.2px;
+    }
+    h3 {
+      font-size: 16px;
+      margin: 24px 0 8px;
+      color: var(--text);
+    }
+    p, li { color: var(--text); }
+    p, ul, ol { margin: 0 0 14px; }
+    ul, ol { padding-left: 22px; }
+    li { margin-bottom: 6px; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    strong { color: var(--text); }
+    .meta {
+      color: var(--text-dim);
+      font-size: 14px;
+      margin: 0 0 32px;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 12px 0 18px;
+      font-size: 14px;
+      background: var(--surface);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    th, td {
+      text-align: left;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+    th {
+      background: rgba(255,255,255,0.02);
+      font-weight: 600;
+      color: var(--text-dim);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    tr:last-child td { border-bottom: none; }
+    footer {
+      margin-top: 64px;
+      padding-top: 24px;
+      border-top: 1px solid var(--border);
+      color: var(--text-dim);
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Privacy Policy</h1>
+  <p class="meta"><strong>Last updated:</strong> 12 May 2026</p>
+
+  <p>This Privacy Policy describes how FlowState ("we", "us", "the app") collects, uses, and protects your information when you use the FlowState iOS app.</p>
+
+  <h2>1. Information We Collect</h2>
+
+  <h3>Account information</h3>
+  <p>When you create an account, we collect:</p>
+  <ul>
+    <li>Your email address (collected via Apple Sign In or email/password sign-up).</li>
+    <li>An Apple user identifier (only when you choose Sign in with Apple).</li>
+  </ul>
+
+  <h3>Content you create</h3>
+  <p>We store the content you create in the app:</p>
+  <ul>
+    <li>Tasks (title, energy tag, scheduled date, completion state).</li>
+    <li>Routines and routine groups (title, emoji, slot, recurrence rule, optional energy tag).</li>
+    <li>Parked tasks and elapsed timer state.</li>
+    <li>Imported calendar events (title, time, source calendar name).</li>
+  </ul>
+
+  <h3>Subscription information</h3>
+  <p>If you subscribe to FlowState Pro, our payment partner (RevenueCat) receives the receipt data from Apple to validate your subscription and entitlement status. We do not receive or store your payment card details — those stay with Apple.</p>
+
+  <h3>Local-only data</h3>
+  <p>The following data <strong>stays on your device</strong> and is not transmitted to our servers:</p>
+  <ul>
+    <li>Calendar events read from the system Calendar via EventKit. We only read your calendars to display events alongside your tasks; we do not upload event content to our servers.</li>
+    <li>Microphone audio and speech transcriptions used for the in-app dictation feature. Audio is processed by Apple's on-device Speech framework when available; transcribed text is only sent to OpenAI if you use the AI task classifier (see Section 3).</li>
+  </ul>
+
+  <h2>2. How We Use Your Information</h2>
+  <p>We use the information we collect to:</p>
+  <ul>
+    <li>Provide and operate the FlowState service (sync your tasks across your devices, materialize daily routine instances, surface energy-matched tasks).</li>
+    <li>Manage your subscription and entitlement.</li>
+    <li>Communicate with you about account or service changes when necessary.</li>
+    <li>Protect against abuse and debug technical issues.</li>
+  </ul>
+  <p>We do not use your information for advertising. We do not sell your data.</p>
+
+  <h2>3. Third-Party Services</h2>
+  <p>FlowState relies on the following third-party services. Each operates under its own privacy policy.</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Service</th>
+        <th>Purpose</th>
+        <th>Data shared</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Apple</strong> (Sign in with Apple, App Store, EventKit, Speech)</td>
+        <td>Authentication, payment, optional calendar read, speech-to-text</td>
+        <td>Email, Apple user ID, purchase receipts, calendar reads (device-local), speech audio (device-local when supported)</td>
+      </tr>
+      <tr>
+        <td><strong>Supabase</strong></td>
+        <td>Authenticated database for tasks, parked tasks, imported event metadata</td>
+        <td>Authenticated user ID, content you create</td>
+      </tr>
+      <tr>
+        <td><strong>RevenueCat</strong></td>
+        <td>Subscription state, paywall offerings, receipt validation</td>
+        <td>Apple user ID, subscription receipt, entitlement status</td>
+      </tr>
+      <tr>
+        <td><strong>OpenAI</strong></td>
+        <td>AI suggestions (energy classification of tasks/events, task generation from natural language)</td>
+        <td>The task title or event text being classified — only when you trigger an AI feature</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <ul>
+    <li>Apple's privacy policy: <a href="https://www.apple.com/legal/privacy/">apple.com/legal/privacy</a></li>
+    <li>Supabase's privacy policy: <a href="https://supabase.com/privacy">supabase.com/privacy</a></li>
+    <li>RevenueCat's privacy policy: <a href="https://www.revenuecat.com/privacy">revenuecat.com/privacy</a></li>
+    <li>OpenAI's privacy policy: <a href="https://openai.com/policies/privacy-policy">openai.com/policies/privacy-policy</a></li>
+  </ul>
+
+  <h2>4. Data Retention</h2>
+  <p>We retain your content for as long as your account exists. When you delete your account, the account record and your tasks, routines, parked tasks, and imported event rows are removed from our database. Subscription receipts may be retained by Apple and RevenueCat per their own retention policies.</p>
+
+  <h2>5. Your Rights</h2>
+  <p>You can:</p>
+  <ul>
+    <li><strong>Access and edit</strong> any content you've created from within the app.</li>
+    <li><strong>Delete your account and all associated data</strong> from Settings → Account → Delete account. This triggers a server-side delete of your account and every row associated with it.</li>
+    <li><strong>Export or request a copy</strong> of your data by emailing <a href="mailto:dzisahken10@gmail.com">dzisahken10@gmail.com</a>. We will respond within 30 days.</li>
+    <li><strong>Manage or cancel your subscription</strong> at any time from your iOS Settings → Apple ID → Subscriptions.</li>
+  </ul>
+  <p>If you are in the EU/UK (GDPR) or California (CCPA), you have additional rights, including the right to lodge a complaint with your local data protection authority. Contact us at the email below to exercise these rights.</p>
+
+  <h2>6. Children's Privacy</h2>
+  <p>FlowState is not directed at children under 13 (or the applicable age of digital consent in your jurisdiction). We do not knowingly collect personal information from children. If you believe we have, please contact us and we will delete the information promptly.</p>
+
+  <h2>7. Security</h2>
+  <p>We use industry-standard transport encryption (HTTPS/TLS) for data in transit. At rest, your content is stored in Supabase's managed Postgres infrastructure with row-level security policies that scope every read to the authenticated user. No security system is perfect; please contact us at the email below if you suspect a security issue.</p>
+
+  <h2>8. Changes to This Policy</h2>
+  <p>We may update this Privacy Policy from time to time. The "Last updated" date at the top reflects the most recent change. Material changes will be communicated in-app or by email.</p>
+
+  <h2>9. Contact</h2>
+  <p>Questions, requests, or concerns:</p>
+  <p><strong>Email:</strong> <a href="mailto:dzisahken10@gmail.com">dzisahken10@gmail.com</a></p>
+
+  <footer>
+    FlowState — Energy-matched task manager for ADHD brains.
+  </footer>
+</main>
+</body>
+</html>

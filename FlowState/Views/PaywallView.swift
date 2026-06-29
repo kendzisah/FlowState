@@ -24,7 +24,6 @@ struct PaywallView: View {
     @State private var isPurchasing = false
     @State private var isRestoring = false
     @State private var loadError: String?
-    @State private var heroPulse = false
     @State private var arrowBounce = false
 
     var body: some View {
@@ -36,11 +35,18 @@ struct PaywallView: View {
                     VStack(spacing: 32) {
                         hero
                         benefits
-                        trialTimeline
+                        if selectedPackageHasTrial {
+                            trialTimeline
+                        }
                     }
                     .padding(.horizontal, 24)
                     .padding(.top, onClose == nil ? 48 : 56)
                     .padding(.bottom, 28)
+                    // Cap the content width on iPad so the paywall reads
+                    // like a phone paywall centered on the canvas instead
+                    // of stretching cards and pills edge-to-edge.
+                    .frame(maxWidth: Self.contentMaxWidth)
+                    .frame(maxWidth: .infinity)
                 }
 
                 purchasePanel
@@ -52,9 +58,6 @@ struct PaywallView: View {
         }
         .task { await loadOfferings() }
         .onAppear {
-            withAnimation(.easeInOut(duration: 2.6).repeatForever(autoreverses: true)) {
-                heroPulse = true
-            }
             // `source` distinguishes the two presentation contexts so
             // attribution dashboards can split paywall conversion rate
             // between the onboarding step and the root entitlement gate.
@@ -79,6 +82,8 @@ struct PaywallView: View {
         }
         .padding(.horizontal, 24)
         .padding(.bottom, 8)
+        .frame(maxWidth: Self.contentMaxWidth)
+        .frame(maxWidth: .infinity)
         .background(
             ZStack(alignment: .top) {
                 Rectangle()
@@ -156,47 +161,11 @@ struct PaywallView: View {
 
     private var hero: some View {
         VStack(spacing: 18) {
-            ZStack {
-                Circle()
-                    .fill(
-                        RadialGradient(
-                            colors: [
-                                palette.parkedAccent.opacity(0.35),
-                                palette.parkedAccent.opacity(0.05),
-                                .clear
-                            ],
-                            center: .center,
-                            startRadius: 0,
-                            endRadius: 110
-                        )
-                    )
-                    .frame(width: 220, height: 220)
-                    .scaleEffect(heroPulse ? 1.05 : 0.95)
-
-                ZStack {
-                    Image(systemName: "cloud.fill")
-                        .font(.system(size: 64, weight: .semibold))
-                        .foregroundStyle(palette.energyFoggy.opacity(0.85))
-                        .offset(x: -8, y: 6)
-
-                    Image(systemName: "bolt.fill")
-                        .font(.system(size: 38, weight: .heavy))
-                        .foregroundStyle(palette.parkedAccent)
-                        .offset(x: 16, y: -2)
-                        .shadow(color: palette.parkedAccent.opacity(0.4), radius: 12)
-                }
-
-                Image(systemName: "sparkle")
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(palette.parkedAccent.opacity(0.85))
-                    .offset(x: -52, y: -58)
-
-                Image(systemName: "sparkle")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(palette.parkedAccent.opacity(0.65))
-                    .offset(x: 60, y: 50)
-            }
-            .frame(height: 180)
+            // Replaces the old cloud + bolt illustration. The mockup shows
+            // the core mechanic (tasks reorder by active energy) in motion
+            // so the first-impression visual reads as "ADHD task manager"
+            // rather than "weather/wellness app."
+            EnergySortMockup()
 
             HStack(spacing: 8) {
                 Image(systemName: "sparkles")
@@ -224,13 +193,60 @@ struct PaywallView: View {
                     .foregroundStyle(palette.textPrimary)
                     .fixedSize(horizontal: false, vertical: true)
 
-                Text("Three days free. Cancel anytime.\nNo streaks, no shame, no rocket emojis.")
+                // Trial claim only when the selected package actually has a
+                // free trial. Without this gate the static copy would lie
+                // when the user picks a non-trial plan (weekly/monthly) —
+                // misleading and a known App Store rejection trigger.
+                if selectedPackageHasTrial {
+                    Text("Three days free. Cancel anytime.")
+                        .font(.system(size: 15, weight: .medium))
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(palette.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Text("No streaks, no shame, no rocket emojis.")
                     .font(.system(size: 15, weight: .medium))
                     .multilineTextAlignment(.center)
                     .foregroundStyle(palette.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
+
+            featurePills
         }
+    }
+
+    // MARK: - Above-fold feature pills
+
+    /// Compact 4-row feature list that lives INSIDE the hero, surfacing the
+    /// product's value prop without requiring a scroll. The longer
+    /// "WHAT YOU UNLOCK" section (below) is the deeper reveal for skeptics —
+    /// this row is the hook for the user who only sees the first screen.
+    private var featurePills: some View {
+        VStack(spacing: 10) {
+            FeaturePillRow(
+                icon: "bolt.fill",
+                tint: palette.energyLocked,
+                title: "Tasks sorted by your energy"
+            )
+            FeaturePillRow(
+                icon: "tray.full.fill",
+                tint: palette.energyScattered,
+                title: "Park mid-session, no guilt"
+            )
+            FeaturePillRow(
+                icon: "rectangle.on.rectangle.angled",
+                tint: palette.parkedAccent,
+                title: "Live Activity focus timer"
+            )
+            FeaturePillRow(
+                icon: "leaf.fill",
+                tint: palette.captionPulse,
+                title: "No streaks. No chains. No shame."
+            )
+        }
+        .padding(.top, 4)
+        .padding(.bottom, 8)
     }
 
     // MARK: - Benefits
@@ -462,7 +478,12 @@ struct PaywallView: View {
     // Information). Privacy policy is FlowState-authored, hosted on
     // GitHub Pages.
     private static let termsURL = URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!
-    private static let privacyURL = URL(string: "https://kendzisah.github.io/FlowState/privacy")!
+    private static let privacyURL = URL(string: "https://flow-state-adhd.pages.dev")!
+
+    /// Cap content width on iPad so the paywall doesn't stretch full-screen.
+    /// Phone-class reading width (~560pt) keeps line lengths comfortable and
+    /// the package cards from getting comically wide on a 13" tablet.
+    private static let contentMaxWidth: CGFloat = 560
 
     // MARK: - Close
 
@@ -504,6 +525,15 @@ struct PaywallView: View {
     }
 
     // MARK: - Copy helpers
+
+    /// Single source of truth for "does the selected plan include a free
+    /// trial?" — gates the hero subhead and the entire trial timeline so
+    /// the UI never claims a trial that isn't actually configured on the
+    /// chosen package. `ctaLabel` / `subPriceCopy` inline the same check
+    /// for their own per-package wording.
+    private var selectedPackageHasTrial: Bool {
+        selectedPackage?.storeProduct.introductoryDiscount?.paymentMode == .freeTrial
+    }
 
     private var ctaLabel: String {
         guard let pkg = selectedPackage else { return "Start free trial" }
@@ -623,6 +653,156 @@ struct PaywallView: View {
             Analytics.track(.paywallRestoreFailed(error: error.localizedDescription))
             AnalyticsErrorReporter.report(error, context: "paywall.restore")
         }
+    }
+}
+
+// MARK: - Animated energy-sort mockup
+
+/// Decorative hero visual: 3 fake task rows reorder + fade as an active
+/// energy chip cycles through Scattered → Steady → Locked in every 2.5s.
+/// Replaces an earlier cloud + lightning motif that read as "weather app"
+/// at first glance — this one shows the actual product mechanic, so the
+/// user understands what they're buying before they finish reading.
+private struct EnergySortMockup: View {
+    @Environment(\.palette) private var palette
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    @State private var activeEnergy: EnergyLevel = .scattered
+
+    private struct MockTask: Identifiable {
+        let id: String
+        let title: String
+        let energy: EnergyLevel
+    }
+
+    private let mockTasks: [MockTask] = [
+        MockTask(id: "a", title: "Reply to David",   energy: .scattered),
+        MockTask(id: "b", title: "Review Q1 plan",   energy: .steady),
+        MockTask(id: "c", title: "Deep work block",  energy: .locked),
+    ]
+
+    // Skip `.foggy` — that's a rest state, not a task energy tag.
+    private let cycle: [EnergyLevel] = [.scattered, .steady, .locked]
+
+    var body: some View {
+        VStack(spacing: 12) {
+            HStack(spacing: 8) {
+                ForEach(cycle, id: \.self) { level in
+                    chip(for: level)
+                }
+            }
+
+            VStack(spacing: 6) {
+                ForEach(sortedTasks) { task in
+                    taskRow(for: task)
+                }
+            }
+        }
+        .padding(.horizontal, 8)
+        .animation(.spring(response: 0.55, dampingFraction: 0.78), value: activeEnergy)
+        .task {
+            guard !reduceMotion else { return }
+            while !_Concurrency.Task.isCancelled {
+                try? await _Concurrency.Task.sleep(for: .seconds(2.5))
+                guard !_Concurrency.Task.isCancelled else { return }
+                if let i = cycle.firstIndex(of: activeEnergy) {
+                    activeEnergy = cycle[(i + 1) % cycle.count]
+                }
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Preview: tasks reorder based on your current energy level.")
+        .allowsHitTesting(false)
+    }
+
+    /// Active-energy tasks float to the top (matched first) and fade-in;
+    /// non-matching tasks sink and dim. Mirrors the real app behavior.
+    private var sortedTasks: [MockTask] {
+        mockTasks.sorted { a, b in
+            (a.energy == activeEnergy ? 0 : 1) < (b.energy == activeEnergy ? 0 : 1)
+        }
+    }
+
+    @ViewBuilder
+    private func chip(for level: EnergyLevel) -> some View {
+        let isActive = level == activeEnergy
+        Text(level.shortLabel)
+            .font(.system(size: 11, weight: .heavy))
+            .tracking(0.8)
+            .foregroundStyle(isActive ? palette.onEnergy : palette.textSecondary)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(
+                ZStack {
+                    Capsule()
+                        .fill(isActive ? palette.parkedAccent : palette.surface.opacity(0.5))
+                    Capsule()
+                        .stroke(palette.border.opacity(isActive ? 0 : 0.6), lineWidth: 1)
+                }
+            )
+    }
+
+    @ViewBuilder
+    private func taskRow(for task: MockTask) -> some View {
+        let isActive = task.energy == activeEnergy
+        HStack(spacing: 10) {
+            Circle()
+                .fill(task.energy.color(in: palette))
+                .frame(width: 8, height: 8)
+            Text(task.title)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(palette.textPrimary)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(palette.surface.opacity(isActive ? 0.7 : 0.4))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(palette.border.opacity(0.4), lineWidth: 0.5)
+                )
+        )
+        .opacity(isActive ? 1.0 : 0.45)
+    }
+}
+
+// MARK: - Feature pill (above-the-fold)
+
+/// Lightweight capsule used in the paywall hero. Pattern matches
+/// `DurationChip` / `BatteryPill`: SF Symbol + single-line label inside
+/// a surface-tinted capsule with a 1pt border.
+private struct FeaturePillRow: View {
+    let icon: String
+    let tint: Color
+    let title: String
+
+    @Environment(\.palette) private var palette
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(tint)
+                .frame(width: 22, alignment: .center)
+
+            Text(title)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(palette.textPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            Capsule()
+                .fill(palette.surface.opacity(0.55))
+                .overlay(Capsule().stroke(palette.border.opacity(0.6), lineWidth: 1))
+        )
     }
 }
 

@@ -15,7 +15,7 @@ struct RootView: View {
     private var auth: AuthManager { .shared }
 
     private enum Route {
-        case splash, onboarding, paywall, timer, checkin, rest, home
+        case splash, onboarding, timer, checkin, rest, home
     }
 
     private var route: Route {
@@ -31,16 +31,28 @@ struct RootView: View {
 
         if !store.hasCompletedOnboarding { return .onboarding }
 
-        let foggyRestAccessible = store.energyIsActiveToday
-            && store.energyLevel == .foggy
-            && !store.peekList
-
-        if !store.entitled && !foggyRestAccessible { return .paywall }
-
+        // Paywall is presented as a full-screen cover (see `shouldShowPaywall`)
+        // so the underlying home/checkin/rest route still renders behind it.
         if store.timerRunning || store.activeTask != nil { return .timer }
         if !store.energyIsActiveToday                    { return .checkin }
         if store.energyLevel == .foggy && !store.peekList { return .rest }
         return .home
+    }
+
+    /// Gates the paywall cover. Returns true when an authenticated, onboarded
+    /// user isn't entitled and isn't in foggy-rest mode (which is the only
+    /// free-tier escape hatch). Flipping `store.entitled` after a successful
+    /// purchase implicitly dismisses the cover.
+    private var shouldShowPaywall: Bool {
+        guard !auth.isRestoring,
+              auth.isAuthenticated,
+              store.hasCompletedOnboarding else { return false }
+
+        let foggyRestAccessible = store.energyIsActiveToday
+            && store.energyLevel == .foggy
+            && !store.peekList
+
+        return !store.entitled && !foggyRestAccessible
     }
 
     private var palette: Palette {
@@ -58,7 +70,6 @@ struct RootView: View {
                 switch route {
                 case .splash:     LaunchSplash()
                 case .onboarding: OnboardingCoordinator()
-                case .paywall:    PaywallView { _ in store.entitled = true }
                 case .timer:      TimerView()
                 case .checkin:    CheckInView()
                 case .rest:       RestView()
@@ -66,6 +77,10 @@ struct RootView: View {
                 }
             }
             .environment(\.palette, palette)
+            .fullScreenCover(isPresented: .constant(shouldShowPaywall)) {
+                PaywallView { _ in store.entitled = true }
+                    .environment(\.palette, palette)
+            }
             .onChange(of: route) { _, newRoute in
                 handleRouteChange(newRoute)
             }
@@ -136,7 +151,6 @@ struct RootView: View {
         switch newRoute {
         case .splash:     name = "Splash"
         case .onboarding: name = "Onboarding"
-        case .paywall:    name = "Paywall"
         case .timer:      name = "Timer"
         case .checkin:    name = "CheckIn"
         case .rest:       name = "Rest"
@@ -149,8 +163,10 @@ struct RootView: View {
         // ATT triggers when the user transitions out of splash/onboarding
         // into any "real" route. Onboarding is when they have the most
         // context for why we're asking, so grant rate is highest here.
+        // Paywall fires its own `Analytics.screen("Paywall")` from PaywallView
+        // — and ATT will be triggered by the underlying route (home/checkin/rest).
         switch newRoute {
-        case .paywall, .timer, .checkin, .rest, .home:
+        case .timer, .checkin, .rest, .home:
             _Concurrency.Task { @MainActor in await ATTManager.requestIfNeeded() }
         default:
             break
